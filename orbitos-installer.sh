@@ -4,7 +4,7 @@
 # ║                                                                               ║
 # ║                      ✨ OrbitOS Arch Installer - KDE ✨                       ║
 # ║                                                                               ║
-# ║          Self-contained installer. No external scripts required.              ║
+# ║                           Self-contained installer.                           ║
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 #
