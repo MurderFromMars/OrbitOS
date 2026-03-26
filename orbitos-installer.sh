@@ -23,7 +23,7 @@ readonly ORBIT_MOUNT="/mnt"
 
 # Optional: set this to a direct URL to your logo PNG (e.g. raw GitHub link).
 # If left empty the installer will generate a simple SVG placeholder instead.
-ORBIT_LOGO_URL=""
+ORBIT_LOGO_URL="https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/ps4.png"
 
 # Terminal colours — only used as fallback when gum is absent
 _c_red=$'\033[0;31m'
