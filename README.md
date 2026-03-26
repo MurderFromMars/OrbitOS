@@ -26,7 +26,7 @@
 Boot into the [Arch Linux live ISO](https://archlinux.org/download/), connect to the internet, then run:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/MurderFromMars/orbitos/main/orbitos-installer.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/orbitos-installer.sh)
 ```
 
 > **WiFi?** Connect first with `iwctl station wlan0 connect "YourSSID"` — then run the command above.
