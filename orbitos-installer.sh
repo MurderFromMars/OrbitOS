@@ -1365,7 +1365,7 @@ install_kde_minimal() {
         gvfs gvfs-mtp gvfs-smb gvfs-afc udisks2 udiskie \
         xdg-utils xdg-user-dirs \
         flatpak \
-        power-profiles-daemon \
+        tuned-ppd \
         switcheroo-control \
         brightnessctl \
         ntfs-3g exfatprogs \
@@ -1451,7 +1451,7 @@ install_orbit_extras() {
     arch-chroot "$ORBIT_MOUNT" su -l "${CFG[username]}" -c "
         set -e
         cd \$HOME
-        git clone https://github.com/synsejse/xero-toolkit CyberXero-Toolkit 2>&1 | tail -3
+        git clone https://github.com/MurderFromMars/CyberXero-Toolkit CyberXero-Toolkit 2>&1 | tail -3
         cd CyberXero-Toolkit
         cargo build --release 2>&1 | grep -E '^(error|Compiling|Finished)' | tail -20
     " || {
