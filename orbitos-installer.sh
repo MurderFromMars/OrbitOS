@@ -8,7 +8,7 @@
 # ║                                                                               ║
 # ╚═══════════════════════════════════════════════════════════════════════════════╝
 #
-# OrbitOS: Minimal Arch Linux + KDE Plasma + CyberXero Toolkit + PS4 Theme
+# OrbitOS: Minimal Arch Linux + KDE Plasma + CachyOS Gaming + CyberXero Toolkit + PS4 Theme
 #
 
 set -Eeuo pipefail
@@ -44,7 +44,6 @@ CONFIG[encrypt_boot]="no"
 CONFIG[encrypt_password]=""
 CONFIG[swap]="zram"
 CONFIG[swap_algo]="zstd"
-CONFIG[gfx_driver]="mesa"
 CONFIG[parallel_downloads]="5"
 CONFIG[uefi]="no"
 CONFIG[boot_part]=""
@@ -54,6 +53,7 @@ CONFIG[partition_mode]="auto"
 CONFIG[reuse_efi]="no"
 CONFIG[aur_helper]="paru"
 CONFIG[login_manager]="sddm"
+CONFIG[cachyos_optimized]="no"
 
 # User-selected extra packages (populated during menu)
 EXTRA_PKGS=""
@@ -93,7 +93,7 @@ show_header() {
         --align center --width 70 --margin "1 2" --padding "1 2" \
         "✨ $SCRIPT_NAME v$VERSION ✨" \
         "" \
-        "Arch Linux + KDE Plasma + PS4 Theme + CyberXero Toolkit"
+        "Arch Linux + KDE Plasma + Gaming + PS4 Theme + CyberXero Toolkit"
 }
 
 show_submenu_header() { gum style --foreground 212 --bold --margin "1 2" "$1"; }
@@ -435,36 +435,6 @@ configure_hostname() {
     sleep 0.5
 }
 
-select_graphics_driver() {
-    show_header
-    show_submenu_header "🎮 Graphics Driver"
-    echo ""
-    local is_vm="no"
-    systemd-detect-virt -q 2>/dev/null && is_vm="yes" || true
-    [[ "$is_vm" == "yes" ]] && gum style --foreground 82 --margin "0 2" "🔍 Virtual Machine detected."
-    echo ""
-
-    local drivers=()
-    [[ "$is_vm" == "yes" ]] && drivers+=("vm                   │ Virtual Machine")
-    drivers+=(
-        "intel                │ Intel Graphics"
-        "amd                  │ AMD Graphics"
-        "nvidia-turing        │ NVIDIA Turing+ (RTX 20/30/40, GTX 1650+)"
-        "nvidia-legacy        │ NVIDIA Legacy (GTX 900/1000 series)"
-        "intel-amd            │ Intel + AMD (Hybrid)"
-        "intel-nvidia-turing  │ Intel + NVIDIA Turing+ (Optimus)"
-        "intel-nvidia-legacy  │ Intel + NVIDIA Legacy (Optimus)"
-        "amd-nvidia-turing    │ AMD + NVIDIA Turing+ (Hybrid)"
-        "amd-nvidia-legacy    │ AMD + NVIDIA Legacy (Hybrid)"
-    )
-    [[ "$is_vm" != "yes" ]] && drivers+=("vm                   │ Virtual Machine")
-
-    local drv_sel=""
-    drv_sel=$(printf '%s\n' "${drivers[@]}" | gum choose --height 12 --header "Graphics driver:") || true
-    [[ -n "$drv_sel" ]] && CONFIG[gfx_driver]=$(echo "$drv_sel" | awk '{print $1}') && show_success "Driver: ${CONFIG[gfx_driver]}"
-    sleep 0.5
-}
-
 configure_authentication() {
     show_header
     show_submenu_header "👤 User Account"
@@ -576,6 +546,30 @@ select_login_manager() {
     sleep 0.5
 }
 
+toggle_cachyos_optimized() {
+    show_header
+    show_submenu_header "⚡ CachyOS Optimized Packages"
+    echo ""
+    gum style --foreground 245 --margin "0 2" \
+        "CachyOS provides core system packages (glibc, mesa, etc.)" \
+        "rebuilt with x86-64-v3/v4 optimizations for modern CPUs." \
+        "" \
+        "This replaces standard Arch packages with faster builds" \
+        "tuned for your CPU's instruction set (AVX2/AVX-512)." \
+        "" \
+        "Safe on any CPU from ~2013 onwards (Haswell+)." \
+        "The installer auto-detects your CPU's capability level."
+    echo ""
+    if confirm_action "Enable CachyOS optimized packages?"; then
+        CONFIG[cachyos_optimized]="yes"
+        show_success "CachyOS optimized packages: enabled"
+    else
+        CONFIG[cachyos_optimized]="no"
+        show_success "CachyOS optimized packages: disabled (vanilla Arch)"
+    fi
+    sleep 0.5
+}
+
 select_extra_packages() {
     show_header
     show_submenu_header "📦 Optional Packages"
@@ -604,8 +598,6 @@ select_extra_packages() {
         "thunderbird        Email client"
         "nextcloud-client   Nextcloud sync"
         "obsidian           Note-taking"
-        "steam              Steam"
-        "lutris             Game launcher"
     )
 
     # Build display list and package map
@@ -680,6 +672,9 @@ show_summary() {
     local disk_line="${CONFIG[disk]:-N/A}"
     [[ "${CONFIG[partition_mode]}" == "manual" ]] && disk_line="root=${CONFIG[root_part]} boot=${CONFIG[boot_part]:-none}"
 
+    local cachyos_opt_line="No (vanilla Arch packages)"
+    [[ "${CONFIG[cachyos_optimized]}" == "yes" ]] && cachyos_opt_line="Yes (x86-64-v3/v4)"
+
     gum style --border rounded --border-foreground 212 --padding "1 2" --margin "0 2" \
         "Locale:       ${CONFIG[locale]}" \
         "Keyboard:     ${CONFIG[keyboard]}" \
@@ -693,7 +688,8 @@ show_summary() {
         "Encryption:   $encrypt_status" \
         "Swap:         ${CONFIG[swap]}" \
         "" \
-        "Graphics:     ${CONFIG[gfx_driver]}" \
+        "Graphics:     Auto-detect (chwd)" \
+        "Optimized:    $cachyos_opt_line" \
         "Boot Mode:    $boot_mode" \
         "AUR Helper:   ${CONFIG[aur_helper]}" \
         "Login Mgr:    ${CONFIG[login_manager]}" \
@@ -718,18 +714,21 @@ show_main_menu() {
         [[ "${CONFIG[partition_mode]}" == "manual" && -n "${CONFIG[root_part]}" ]] && \
             disk_info="Manual: root=${CONFIG[root_part]}"
 
+        local cachyos_opt_status="no"
+        [[ "${CONFIG[cachyos_optimized]}" == "yes" ]] && cachyos_opt_status="yes (x86-64-v3/v4)"
+
         local menu_items=(
             ""
             "1.  🗺️  Locales            │ ${CONFIG[locale]} / ${CONFIG[keyboard]}"
             "2.  💾 Disk               │ $disk_info (${CONFIG[filesystem]})"
             "3.  🔄 Swap               │ ${CONFIG[swap]}"
             "4.  💻 Hostname           │ ${CONFIG[hostname]}"
-            "5.  🎮 Graphics           │ ${CONFIG[gfx_driver]}"
-            "6.  👤 Authentication     │ ${CONFIG[username]:-Not configured}"
-            "7.  🕐 Timezone           │ ${CONFIG[timezone]}"
-            "8.  ⚡ Parallel DLs       │ ${CONFIG[parallel_downloads]}"
-            "9.  🔧 AUR Helper         │ ${CONFIG[aur_helper]}"
-            "10. 🔐 Login Manager      │ ${CONFIG[login_manager]}"
+            "5.  👤 Authentication     │ ${CONFIG[username]:-Not configured}"
+            "6.  🕐 Timezone           │ ${CONFIG[timezone]}"
+            "7.  ⚡ Parallel DLs       │ ${CONFIG[parallel_downloads]}"
+            "8.  🔧 AUR Helper         │ ${CONFIG[aur_helper]}"
+            "9.  🔐 Login Manager      │ ${CONFIG[login_manager]}"
+            "10. 🚀 CachyOS Optimized  │ $cachyos_opt_status"
             "11. 📦 Extra Packages     │ ${EXTRA_PKGS:-none}"
             "──────────────────────────────────────────────"
             "12. ✅ Start Installation"
@@ -745,12 +744,12 @@ show_main_menu() {
             "2."*)  select_partitioning_mode ;;
             "3."*)  configure_swap ;;
             "4."*)  configure_hostname ;;
-            "5."*)  select_graphics_driver ;;
-            "6."*)  configure_authentication ;;
-            "7."*)  select_timezone ;;
-            "8."*)  configure_parallel_downloads ;;
-            "9."*)  select_aur_helper ;;
-            "10."*) select_login_manager ;;
+            "5."*)  configure_authentication ;;
+            "6."*)  select_timezone ;;
+            "7."*)  configure_parallel_downloads ;;
+            "8."*)  select_aur_helper ;;
+            "9."*)  select_login_manager ;;
+            "10."*) toggle_cachyos_optimized ;;
             "11."*) select_extra_packages ;;
             "12."*)
                 if validate_config; then
@@ -917,10 +916,6 @@ mount_filesystems() {
 add_temp_repo() {
     sed -i '/^#\[multilib\]/{N;s/#\[multilib\]\n#Include/[multilib]\nInclude/}' /etc/pacman.conf
 
-    if ! grep -q "\[xerolinux\]" /etc/pacman.conf; then
-        echo -e '\n[xerolinux]\nSigLevel = Optional TrustAll\nServer = https://repos.xerolinux.xyz/$repo/$arch' >> /etc/pacman.conf
-    fi
-
     if ! grep -q "\[chaotic-aur\]" /etc/pacman.conf; then
         pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
         pacman-key --lsign-key 3056513887B78AEB
@@ -937,14 +932,13 @@ add_temp_repo() {
 install_base_system() {
     add_temp_repo
 
-    # linux-zen is the default kernel; linux-zen-headers for DKMS modules
-    local packages="base base-devel linux-zen mkinitcpio-fw linux-zen-headers"
+    local packages="base base-devel linux-zen linux-zen-headers"
 
     grep -q "GenuineIntel" /proc/cpuinfo && packages+=" intel-ucode"
     grep -q "AuthenticAMD" /proc/cpuinfo && packages+=" amd-ucode"
 
     # Boot & filesystem
-    packages+=" grub efibootmgr os-prober grub-hooks update-grub"
+    packages+=" grub efibootmgr os-prober"
     packages+=" btrfs-progs dosfstools e2fsprogs xfsprogs gptfdisk"
 
     # Base utilities
@@ -958,7 +952,7 @@ install_base_system() {
     packages+=" bluez bluez-libs bluez-utils"
 
     # Audio (PipeWire)
-    packages+=" pipewire wireplumber pipewire-jack pipewire-support"
+    packages+=" pipewire wireplumber pipewire-jack pipewire-alsa pipewire-pulse"
     packages+=" alsa-utils alsa-plugins alsa-firmware"
 
     # GStreamer (minimal)
@@ -980,16 +974,25 @@ install_base_system() {
 add_repos() {
     sed -i '/^#\[multilib\]/{N;s/#\[multilib\]\n#Include/[multilib]\nInclude/}' "$MOUNTPOINT/etc/pacman.conf"
 
-    if ! grep -q "\[xerolinux\]" "$MOUNTPOINT/etc/pacman.conf"; then
-        echo -e '\n[xerolinux]\nSigLevel = Optional TrustAll\nServer = https://repos.xerolinux.xyz/$repo/$arch' >> "$MOUNTPOINT/etc/pacman.conf"
-    fi
-
     if ! grep -q "\[chaotic-aur\]" "$MOUNTPOINT/etc/pacman.conf"; then
         arch-chroot "$MOUNTPOINT" pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
         arch-chroot "$MOUNTPOINT" pacman-key --lsign-key 3056513887B78AEB
         arch-chroot "$MOUNTPOINT" pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
         arch-chroot "$MOUNTPOINT" pacman -U --noconfirm 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
         echo -e '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist' >> "$MOUNTPOINT/etc/pacman.conf"
+    fi
+
+    # ── CachyOS repo (provides chwd for hardware auto-detection) ──────────
+    if ! grep -q "\[cachyos\]" "$MOUNTPOINT/etc/pacman.conf"; then
+        show_info "  Adding CachyOS repository..."
+        arch-chroot "$MOUNTPOINT" bash -c '
+            cd /tmp
+            curl -sSL https://mirror.cachyos.org/cachyos-repo.tar.xz -o cachyos-repo.tar.xz
+            tar xf cachyos-repo.tar.xz
+            cd cachyos-repo
+            yes | ./cachyos-repo.sh
+            rm -rf /tmp/cachyos-repo /tmp/cachyos-repo.tar.xz
+        '
     fi
 
     apply_parallel_downloads "$MOUNTPOINT/etc/pacman.conf"
@@ -1094,50 +1097,70 @@ create_user() {
     sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' "$MOUNTPOINT/etc/sudoers"
 }
 
-install_graphics() {
-    local packages=""
-    local needs_nvidia_config="no"
-    local base_drivers="mesa autorandr mesa-utils lib32-mesa xf86-video-fbdev lib32-mesa-utils"
+install_drivers_chwd() {
+    # ── Verify kernel state ───────────────────────────────────────────────
+    # Ensure only linux-zen is installed — no CachyOS kernels that would
+    # confuse chwd's conditional_packages logic.
+    show_info "  Verifying kernel state (linux-zen only)..."
 
-    case "${CONFIG[gfx_driver]}" in
-        intel)                packages="intel-drv $base_drivers" ;;
-        amd)                  packages="amd-drv $base_drivers" ;;
-        nvidia-turing)        packages="nvidia-open-dkms nvidia-utils opencl-nvidia nvidia-settings libvdpau vulkan-icd-loader lib32-nvidia-utils linux-firmware-nvidia $base_drivers"
-                              needs_nvidia_config="yes" ;;
-        nvidia-legacy)        packages="nvidia-580xx-dkms nvidia-580xx-utils opencl-nvidia-580xx lib32-nvidia-580xx-utils $base_drivers"
-                              needs_nvidia_config="yes" ;;
-        intel-amd)            packages="intel-drv amd-drv $base_drivers" ;;
-        intel-nvidia-turing)  packages="intel-drv nvidia-open-dkms nvidia-utils opencl-nvidia nvidia-settings libvdpau vulkan-icd-loader lib32-nvidia-utils linux-firmware-nvidia $base_drivers"
-                              needs_nvidia_config="yes" ;;
-        intel-nvidia-legacy)  packages="intel-drv nvidia-580xx-dkms nvidia-580xx-utils opencl-nvidia-580xx lib32-nvidia-580xx-utils $base_drivers"
-                              needs_nvidia_config="yes" ;;
-        amd-nvidia-turing)    packages="amd-drv nvidia-open-dkms nvidia-utils opencl-nvidia nvidia-settings libvdpau vulkan-icd-loader lib32-nvidia-utils linux-firmware-nvidia $base_drivers"
-                              needs_nvidia_config="yes" ;;
-        amd-nvidia-legacy)    packages="amd-drv nvidia-580xx-dkms nvidia-580xx-utils opencl-nvidia-580xx lib32-nvidia-580xx-utils $base_drivers"
-                              needs_nvidia_config="yes" ;;
-        vm)
-            packages="$base_drivers"
-            local vm_type=""
-            vm_type=$(systemd-detect-virt 2>/dev/null || echo "unknown")
-            case "$vm_type" in
-                qemu|kvm)  packages+=" spice-vdagent qemu-guest-agent" ;;
-                vmware)    packages+=" open-vm-tools" ;;
-                oracle)    packages+=" virtualbox-guest-utils" ;;
-                *)         packages+=" spice-vdagent qemu-guest-agent open-vm-tools" ;;
-            esac
-            ;;
-    esac
-
-    [[ -n "$packages" ]] && arch-chroot "$MOUNTPOINT" pacman -S --noconfirm --needed $packages
-
-    if [[ "$needs_nvidia_config" == "yes" ]]; then
-        sed -i 's/^MODULES=(\(.*\))/MODULES=(\1 nvidia nvidia_modeset nvidia_uvm nvidia_drm)/' "$MOUNTPOINT/etc/mkinitcpio.conf"
-        sed -i 's/MODULES=( /MODULES=(/' "$MOUNTPOINT/etc/mkinitcpio.conf"
-        arch-chroot "$MOUNTPOINT" mkinitcpio -P
-        sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT="\(.*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 nvidia_drm.modeset=1 nvidia_drm.fbdev=1"/' \
-            "$MOUNTPOINT/etc/default/grub"
-        arch-chroot "$MOUNTPOINT" grub-mkconfig -o /boot/grub/grub.cfg
+    local stray_kernels=""
+    stray_kernels=$(arch-chroot "$MOUNTPOINT" pacman -Qqs '^linux-cachyos' 2>/dev/null || true)
+    if [[ -n "$stray_kernels" ]]; then
+        show_warning "Unexpected CachyOS kernels detected — removing to avoid conflicts:"
+        show_warning "  $stray_kernels"
+        arch-chroot "$MOUNTPOINT" pacman -Rdd --noconfirm $stray_kernels 2>/dev/null || true
     fi
+
+    # Confirm linux-zen + headers are present (pacstrap should have them)
+    arch-chroot "$MOUNTPOINT" pacman -S --noconfirm --needed linux-zen linux-zen-headers
+
+    show_success "Kernel verified: linux-zen + linux-zen-headers"
+
+    # ── Install chwd ──────────────────────────────────────────────────────
+    show_info "  Installing chwd hardware detection..."
+    arch-chroot "$MOUNTPOINT" pacman -S --noconfirm --needed chwd \
+        || { show_warning "chwd install failed — skipping auto-detection. Install drivers manually after reboot."; return 0; }
+
+    show_success "chwd installed"
+
+    # ── Run auto-detection ────────────────────────────────────────────────
+    # chwd -a pci scans all PCI devices and installs the highest-priority
+    # matching profile for each GPU class (0300/0302/0380).
+    # It handles: package installation, mkinitcpio module injection (via
+    # /etc/mkinitcpio.conf.d/10-chwd.conf), laptop detection (nvidia-prime,
+    # switcheroo, powerd), kms hook removal on desktops, and VM guest tools.
+    show_info "  Auto-detecting hardware and installing drivers..."
+    arch-chroot "$MOUNTPOINT" chwd -a pci -f \
+        || { show_warning "chwd auto-detection failed — install drivers manually after reboot."; return 0; }
+
+    show_success "Hardware drivers installed via chwd"
+
+    # ── Post-chwd: GRUB kernel parameters for NVIDIA ──────────────────────
+    # chwd handles mkinitcpio but NOT grub cmdline. If nvidia modules were
+    # injected, add the required kernel parameters.
+    if [[ -f "$MOUNTPOINT/etc/mkinitcpio.conf.d/10-chwd.conf" ]] \
+       && grep -q 'nvidia' "$MOUNTPOINT/etc/mkinitcpio.conf.d/10-chwd.conf" 2>/dev/null; then
+        show_info "  NVIDIA detected — adding kernel parameters to GRUB..."
+        local current_cmdline=""
+        current_cmdline=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' "$MOUNTPOINT/etc/default/grub" \
+            | sed 's/^GRUB_CMDLINE_LINUX_DEFAULT="//;s/"$//')
+
+        local params_to_add=""
+        [[ "$current_cmdline" != *"nvidia_drm.modeset=1"* ]] && params_to_add+=" nvidia_drm.modeset=1"
+        [[ "$current_cmdline" != *"nvidia_drm.fbdev=1"* ]]   && params_to_add+=" nvidia_drm.fbdev=1"
+
+        if [[ -n "$params_to_add" ]]; then
+            sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=\"\(.*\)\"|GRUB_CMDLINE_LINUX_DEFAULT=\"\1${params_to_add}\"|" \
+                "$MOUNTPOINT/etc/default/grub"
+        fi
+
+        arch-chroot "$MOUNTPOINT" grub-mkconfig -o /boot/grub/grub.cfg
+        show_success "NVIDIA kernel parameters configured"
+    fi
+
+    # ── Rebuild initramfs with chwd's module config ───────────────────────
+    arch-chroot "$MOUNTPOINT" mkinitcpio -P
+    show_success "Initramfs rebuilt"
 }
 
 setup_swap_system() {
@@ -1486,14 +1509,31 @@ perform_installation() {
     install_base_system
     show_success "Base system installed"
 
-    show_info "Adding XeroLinux and Chaotic-AUR repositories..."
+    show_info "Adding Chaotic-AUR and CachyOS repositories..."
     add_repos
     show_success "Repositories configured"
+
+    if [[ "${CONFIG[cachyos_optimized]}" == "yes" ]]; then
+        show_info "Upgrading to CachyOS optimized packages (this may take a while)..."
+        arch-chroot "$MOUNTPOINT" pacman -Syu --noconfirm \
+            || show_warning "Package optimization had errors — system should still be functional"
+        show_success "Packages upgraded to CachyOS optimized builds"
+    fi
 
     run_step "Configuring system..."     configure_system
     run_step "Installing bootloader..."  install_bootloader
     run_step "Creating user account..."  create_user
-    run_step "Installing graphics..."    install_graphics
+
+    show_info "Auto-detecting and installing hardware drivers (chwd)..."
+    install_drivers_chwd
+    show_success "Hardware drivers configured"
+
+    show_info "Installing CachyOS gaming packages..."
+    arch-chroot "$MOUNTPOINT" pacman -S --noconfirm --needed \
+        cachyos-gaming-meta cachyos-gaming-applications \
+        || show_warning "Some gaming packages failed — install manually after reboot: pacman -S cachyos-gaming-meta cachyos-gaming-applications"
+    show_success "Gaming packages installed"
+
     run_step "Configuring swap..."       setup_swap_system
 
     show_info "Installing minimal KDE Plasma..."
@@ -1513,6 +1553,7 @@ perform_installation() {
         "  sudo reboot" \
         "" \
         "On first login:" \
+        "  • Gaming (Steam, Lutris, Heroic) → ready to go" \
         "  • CyberXero Toolkit → run: xero-toolkit" \
         "  • PS4 Plasma Theme  → applies automatically"
     echo ""
