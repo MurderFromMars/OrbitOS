@@ -1053,7 +1053,7 @@ add_temp_repo() {
 
     pacman_set_parallel /etc/pacman.conf
     pacman_set_opts     /etc/pacman.conf
-    pacman -Sy
+    pacman -Sy --noconfirm
 }
 
 install_base_system() {
@@ -1100,18 +1100,32 @@ add_repos() {
     if ! grep -q "\[cachyos\]" "$ORBIT_MOUNT/etc/pacman.conf"; then
         ui_info "  Adding CachyOS repository..."
         arch-chroot "$ORBIT_MOUNT" bash -c '
+            set -e
             cd /tmp
             curl -sSL https://mirror.cachyos.org/cachyos-repo.tar.xz -o cachyos-repo.tar.xz
             tar xf cachyos-repo.tar.xz
             cd cachyos-repo
             yes | ./cachyos-repo.sh
             rm -rf /tmp/cachyos-repo /tmp/cachyos-repo.tar.xz
-        '
+        ' || ui_warn "cachyos-repo.sh reported errors — CachyOS packages may not be available"
     fi
 
     pacman_set_parallel "$ORBIT_MOUNT/etc/pacman.conf"
     pacman_set_opts     "$ORBIT_MOUNT/etc/pacman.conf"
-    arch-chroot "$ORBIT_MOUNT" pacman -Sy
+    arch-chroot "$ORBIT_MOUNT" pacman -Syy --noconfirm
+
+    # ── Verify CachyOS repo is functional ─────────────────────────────────
+    if arch-chroot "$ORBIT_MOUNT" pacman -Si cachyos-gaming-meta &>/dev/null; then
+        ui_ok "CachyOS repository verified"
+    else
+        ui_warn "CachyOS repo may not be fully configured — retrying sync..."
+        arch-chroot "$ORBIT_MOUNT" pacman -Syy --noconfirm
+        if arch-chroot "$ORBIT_MOUNT" pacman -Si cachyos-gaming-meta &>/dev/null; then
+            ui_ok "CachyOS repository verified on retry"
+        else
+            ui_warn "CachyOS packages not found — gaming meta and chwd may fail"
+        fi
+    fi
 }
 
 configure_system() {
@@ -1131,21 +1145,6 @@ configure_system() {
 ::1         localhost
 127.0.1.1   ${CFG[hostname]}.localdomain ${CFG[hostname]}
 EOF
-
-    # ── OrbitOS branding ──────────────────────────────────────────────────────
-    # Overwrite os-release so the distro name shows correctly everywhere
-    # (fastfetch, KDE System Settings About page, neofetch, etc.)
-    cat > "$ORBIT_MOUNT/etc/os-release" << EOF
-NAME="OrbitOS"
-PRETTY_NAME="OrbitOS"
-ID=arch
-ID_LIKE=arch
-BUILD_ID=rolling
-ANSI_COLOR="38;2;23;147;209"
-HOME_URL="https://github.com/MurderFromMars"
-LOGO=orbitos
-EOF
-    ui_ok "os-release: OrbitOS branding applied"
 
     arch-chroot "$ORBIT_MOUNT" systemctl enable NetworkManager avahi-daemon
 
@@ -1265,7 +1264,7 @@ install_drivers_chwd() {
     ui_ok "chwd installed"
 
     ui_info "  Running hardware auto-detection..."
-    arch-chroot "$ORBIT_MOUNT" chwd -a pci -f \
+    arch-chroot "$ORBIT_MOUNT" chwd -a -f \
         || { ui_warn "chwd auto-detection failed — install drivers manually after reboot."; return 0; }
     ui_ok "Hardware drivers installed via chwd"
 
@@ -1336,8 +1335,6 @@ EOF
 
 install_kde_minimal() {
     ui_info "Installing minimal KDE Plasma..."
-
-    arch-chroot "$ORBIT_MOUNT" pacman -Syu --noconfirm
 
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
         plasma-desktop plasma-workspace kwin systemsettings \
@@ -1426,6 +1423,7 @@ install_kde_minimal() {
     arch-chroot "$ORBIT_MOUNT" systemctl enable \
         cups.socket \
         bluetooth \
+        tuned \
         tuned-ppd \
         switcheroo-control \
         wpa_supplicant
@@ -1462,52 +1460,82 @@ install_kde_minimal() {
 install_distro_branding() {
     ui_info "  Installing KDE distro branding (logo + About This System)..."
 
-    # ── Install kcm-about-distroinfo (from Chaotic-AUR) ──────────────────────
-    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed kcm-about-distroinfo \
-        || { ui_warn "kcm-about-distroinfo unavailable — KDE info panel branding skipped."; return 0; }
-
-    # ── Place the logo ────────────────────────────────────────────────────────
+    # ── Place the logo in the hicolor icon theme ──────────────────────────
+    # KDE reads LOGO= from os-release as an XDG icon name and searches the
+    # hicolor theme. Files in /usr/share/pixmaps alone are NOT found.
+    local icon_dir="$ORBIT_MOUNT/usr/share/icons/hicolor"
+    mkdir -p "$icon_dir/scalable/apps"
     mkdir -p "$ORBIT_MOUNT/usr/share/pixmaps"
+
+    local logo_installed="no"
 
     if [[ -n "$ORBIT_LOGO_URL" ]]; then
         ui_info "  Fetching OrbitOS logo from $ORBIT_LOGO_URL ..."
         if curl -fsSL "$ORBIT_LOGO_URL" \
                 -o "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" 2>/dev/null; then
-            ui_ok "Logo downloaded"
+            # Install PNG at multiple icon sizes so KDE finds it
+            for size in 64 128 256; do
+                mkdir -p "$icon_dir/${size}x${size}/apps"
+                cp "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" \
+                   "$icon_dir/${size}x${size}/apps/orbitos.png"
+            done
+            logo_installed="yes"
+            ui_ok "Logo downloaded and installed to icon theme"
         else
-            ui_warn "Logo download failed — generating SVG placeholder instead"
-            ORBIT_LOGO_URL=""   # fall through to SVG generation
+            ui_warn "Logo download failed — generating SVG placeholder"
         fi
     fi
 
-    if [[ -z "$ORBIT_LOGO_URL" ]]; then
-        # Generate a simple SVG placeholder — replace this with your real logo later.
-        # The SVG uses the OrbitOS colour palette (dark bg, cyan orbit ring, white text).
-        cat > "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.svg" << 'SVGEOF'
+    if [[ "$logo_installed" == "no" ]]; then
+        cat > "$icon_dir/scalable/apps/orbitos.svg" << 'SVGEOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <!-- Background -->
   <rect width="256" height="256" rx="32" fill="#0d1117"/>
-  <!-- Orbit ring -->
   <ellipse cx="128" cy="128" rx="88" ry="88"
            fill="none" stroke="#17d4e8" stroke-width="8" stroke-dasharray="20 10"/>
-  <!-- Centre planet -->
   <circle cx="128" cy="128" r="36" fill="#17d4e8"/>
-  <!-- Wordmark -->
   <text x="128" y="228" font-family="sans-serif" font-size="28" font-weight="bold"
         fill="#ffffff" text-anchor="middle" letter-spacing="4">ORBIT</text>
 </svg>
 SVGEOF
-        # Copy svg as the pixmap; KDE will accept SVG for the logo field
-        cp "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.svg" \
-           "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" 2>/dev/null || true
-        ui_ok "SVG placeholder logo created (replace /usr/share/pixmaps/orbitos.svg with your real logo)"
+        # Also place in pixmaps as SVG (don't fake a .png)
+        cp "$icon_dir/scalable/apps/orbitos.svg" \
+           "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.svg"
+        ui_ok "SVG placeholder logo installed (replace $icon_dir/scalable/apps/orbitos.svg with your real logo)"
     fi
 
-    # ── Wire up kcm-about-distroinfo ──────────────────────────────────────────
+    # Rebuild icon cache so KDE picks it up
+    arch-chroot "$ORBIT_MOUNT" gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+
+    # ── Update os-release with correct LOGO field ─────────────────────────
+    # Also write to /usr/lib/os-release (canonical location)
+    cat > "$ORBIT_MOUNT/etc/os-release" << EOF
+NAME="OrbitOS"
+PRETTY_NAME="OrbitOS"
+ID=arch
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;23;147;209"
+HOME_URL="https://github.com/MurderFromMars"
+LOGO=orbitos
+EOF
+    cp "$ORBIT_MOUNT/etc/os-release" "$ORBIT_MOUNT/usr/lib/os-release" 2>/dev/null || true
+
+    cat > "$ORBIT_MOUNT/etc/lsb-release" << 'EOF'
+DISTRIB_ID="OrbitOS"
+DISTRIB_RELEASE="rolling"
+DISTRIB_DESCRIPTION="OrbitOS"
+EOF
+
+    # ── Optional: kcm-about-distroinfo for KDE About panel ────────────────
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed kcm-about-distroinfo 2>/dev/null || true
+
+    local logo_path="/usr/share/pixmaps/orbitos.png"
+    [[ "$logo_installed" == "no" ]] && logo_path="/usr/share/icons/hicolor/scalable/apps/orbitos.svg"
+
     mkdir -p "$ORBIT_MOUNT/etc/xdg"
     cat > "$ORBIT_MOUNT/etc/xdg/kcm-about-distrorc" << EOF
 [General]
-LogoPath=/usr/share/pixmaps/orbitos.png
+LogoPath=$logo_path
 Name=OrbitOS
 Version=${ORBIT_VERSION}
 Website=https://github.com/MurderFromMars
@@ -1551,7 +1579,7 @@ install_orbit_extras() {
     }
 
     ui_info "  Installing toolkit binaries..."
-    arch-chroot "$ORBIT_MOUNT" bash << TOOLINSTALL
+    arch-chroot "$ORBIT_MOUNT" bash << TOOLINSTALL || ui_warn "Toolkit binary install had errors — may need manual setup after reboot"
 set -e
 SRC="/home/${CFG[username]}/CyberXero-Toolkit"
 
@@ -1705,17 +1733,23 @@ perform_installation() {
     install_drivers_chwd
     ui_ok "Hardware drivers configured"
 
-    ui_info "Installing CachyOS gaming packages..."
-    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
-        cachyos-gaming-meta cachyos-gaming-applications \
-        || ui_warn "Some gaming packages failed — run: pacman -S cachyos-gaming-meta cachyos-gaming-applications"
-    ui_ok "Gaming packages installed"
-
     ui_step "Configuring swap..."      setup_swap_system
 
     ui_info "Installing minimal KDE Plasma..."
     install_kde_minimal
     ui_ok "KDE Plasma installed"
+
+    ui_info "Installing CachyOS gaming packages..."
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
+        cachyos-gaming-meta cachyos-gaming-applications \
+        || {
+            ui_warn "Gaming packages failed — retrying after database refresh..."
+            arch-chroot "$ORBIT_MOUNT" pacman -Syy --noconfirm
+            arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
+                cachyos-gaming-meta cachyos-gaming-applications \
+                || ui_warn "Gaming packages still failed — install manually after reboot: sudo pacman -S cachyos-gaming-meta cachyos-gaming-applications"
+        }
+    ui_ok "Gaming packages installed"
 
     ui_info "Applying OrbitOS distro branding..."
     install_distro_branding
