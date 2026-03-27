@@ -1328,37 +1328,22 @@ EOF
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
-# MINIMAL KDE PLASMA
+# KDE PLASMA DESKTOP
 # ────────────────────────────────────────────────────────────────────────────────
-#
-# Philosophy: core Plasma shell + Wayland, the essential KDE app set, and
-# nothing else. No bloat, no ISO tools, no duplicate utilities.
 #
 
 install_kde_minimal() {
-    ui_info "Installing minimal KDE Plasma..."
+    ui_info "Installing KDE Plasma desktop..."
 
+    # ── Plasma meta — full upstream-tested desktop ────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
-        plasma-desktop plasma-workspace kwin systemsettings \
-        kactivitymanagerd kdecoration layer-shell-qt \
-        polkit-kde-agent ksystemstats plasma-integration \
-        kscreenlocker kglobalacceld \
-        kscreen libkscreen \
-        plasma-nm plasma-pa bluedevil \
-        powerdevil \
-        breeze breeze-gtk \
-        kdeplasma-addons \
-        kinfocenter \
-        plasma-systemmonitor \
-        xdg-desktop-portal-kde \
-        polkit-qt6 \
-        qqc2-breeze-style
+        plasma-meta
 
+    # ── NVIDIA Wayland support (not in plasma-meta) ─────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
-        egl-wayland qt6-wayland lib32-wayland wayland-protocols \
-        kwayland-integration plasma-wayland-protocols \
-        xorg-xwayland
+        egl-wayland
 
+    # ── KDE applications ─────────────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
         dolphin dolphin-plugins \
         konsole \
@@ -1375,11 +1360,14 @@ install_kde_minimal() {
         kwalletmanager \
         kdialog
 
+    # ── Thumbnail / file previews ────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
         tumbler ffmpegthumbnailer poppler-qt6 \
         kdegraphics-thumbnailers
 
+    # ── System utilities ─────────────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
+        gnome-disk-utility \
         gvfs gvfs-mtp gvfs-smb gvfs-afc udisks2 udiskie \
         xdg-utils xdg-user-dirs \
         flatpak \
@@ -1443,7 +1431,7 @@ install_kde_minimal() {
     arch-chroot "$ORBIT_MOUNT" chown "${CFG[username]}:${CFG[username]}" \
         "/home/${CFG[username]}/.bashrc" 2>/dev/null || true
 
-    ui_ok "Minimal KDE Plasma installed"
+    ui_ok "KDE Plasma desktop installed"
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
