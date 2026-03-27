@@ -96,6 +96,9 @@ CachyOS packages are compiled with optimisations for modern CPUs and take preced
 
 
 ---
+@@ Cachy CHWD integration
+
+installs and runs chwd as part of the installation script, this automatically manages drivers in the same manner as cachy meaning nvidia drivers will be setup automatically and appropriately free of user intervention as well as profiles for hybrid gpu setups optimus etc 
 
 ## 🎨 PS4 Plasma Theme
 
