@@ -87,12 +87,13 @@ LUKS2 encryption is supported on both UEFI and BIOS systems.
 
 ## 🎮 CachyOS Gaming Stack
 
-OrbitOS ships the full CachyOS gaming layer on top of Arch:
+OrbitOS optionally ships the full CachyOS gaming layer on top of Arch:
 
 - `cachyos-gaming-meta` — Steam, Lutris, Wine/Proton, GameMode, MangoHud, vkBasalt, goverlay, and more
 - `cachyos-gaming-applications` — Heroic Launcher, Bottles, ProtonPlus, ProtonUp-Qt
 
 CachyOS packages are compiled with optimisations for modern CPUs and take precedence over standard Arch packages where both exist.
+# **REPOS ARE OPT IN BY USER VIA OFFICIAL CACHY INSTALLATION SCRIPT AND ENTIRELY OPTIONAL
 
 ---
 
