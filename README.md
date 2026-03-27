@@ -147,6 +147,6 @@ as such this is highly opinionated and won't be for everyone. if you've seen my 
 
 <div align="center">
 
-Made with love by [MurderFromMars](https://github.com/MurderFromMars)
+Made with love by [MurderFromMars](https://youtube.com/MurderFromMars)
 
 </div>
