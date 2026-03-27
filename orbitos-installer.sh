@@ -1359,7 +1359,8 @@ install_kde_minimal() {
         sweeper \
         kwalletmanager \
         kdialog \
-        cachyos-settings
+        cachyos-settings \
+        grub-hook
 
     # ── Thumbnail / file previews ────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
