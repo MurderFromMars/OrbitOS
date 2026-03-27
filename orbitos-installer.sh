@@ -219,7 +219,7 @@ bootstrap_deps() {
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         printf "${_c_cyn}Fetching missing tools: %s${_c_rst}\n" "${missing[*]}"
-        pacman -Sy --noconfirm "${missing[@]}" &>/dev/null
+        pacman -Sy --noconfirm "${missing[@]}"
     fi
 }
 
