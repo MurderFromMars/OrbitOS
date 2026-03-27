@@ -87,13 +87,13 @@ LUKS2 encryption is supported on both UEFI and BIOS systems.
 
 ## 🎮 CachyOS Gaming Stack
 
-OrbitOS optionally ships the full CachyOS gaming layer on top of Arch:
+OrbitOS ships the full CachyOS gaming layer on top of Arch:
 
 - `cachyos-gaming-meta` — Steam, Lutris, Wine/Proton, GameMode, MangoHud, vkBasalt, goverlay, and more
 - `cachyos-gaming-applications` — Heroic Launcher, Bottles, ProtonPlus, ProtonUp-Qt
 
 CachyOS packages are compiled with optimisations for modern CPUs and take precedence over standard Arch packages where both exist.
-# REPOS ARE OPT IN BY USER VIA OFFICIAL CACHY INSTALLATION SCRIPT AND ENTIRELY OPTIONAL
+
 
 ---
 
@@ -150,6 +150,11 @@ mangohud %command%      # HUD overlay
 - [charmbracelet/gum](https://github.com/charmbracelet/gum) — TUI components
 
 ---
+
+## Why Another Arch Spin?
+
+I grow tired of the issues of Archinstall, and wanted to create a way to conveniently create MY ideal Arch system from an Arch ISO 
+as such this is highly opinonated and won't be for everyone. if you've seen my theming and such in the past then you know what this looks like. as with my themes you will need to set your own keybinds for plasma 
 
 <div align="center">
 
