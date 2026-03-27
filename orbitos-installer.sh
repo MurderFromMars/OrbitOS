@@ -1450,9 +1450,7 @@ install_kde_minimal() {
 install_distro_branding() {
     ui_info "  Installing KDE distro branding (logo + About This System)..."
 
-    # ── Place the logo in the hicolor icon theme ──────────────────────────
-    # KDE reads LOGO= from os-release as an XDG icon name and searches the
-    # hicolor theme. Files in /usr/share/pixmaps alone are NOT found.
+
     local icon_dir="$ORBIT_MOUNT/usr/share/icons/hicolor"
     mkdir -p "$icon_dir/scalable/apps"
     mkdir -p "$ORBIT_MOUNT/usr/share/pixmaps"
@@ -1487,7 +1485,7 @@ install_distro_branding() {
         fill="#ffffff" text-anchor="middle" letter-spacing="4">ORBIT</text>
 </svg>
 SVGEOF
-        # Also place in pixmaps as SVG (don't fake a .png)
+        
         cp "$icon_dir/scalable/apps/orbitos.svg" \
            "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.svg"
         ui_ok "SVG placeholder logo installed (replace $icon_dir/scalable/apps/orbitos.svg with your real logo)"
@@ -1496,8 +1494,7 @@ SVGEOF
     # Rebuild icon cache so KDE picks it up
     arch-chroot "$ORBIT_MOUNT" gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
 
-    # ── Update os-release with correct LOGO field ─────────────────────────
-    # Also write to /usr/lib/os-release (canonical location)
+    
     cat > "$ORBIT_MOUNT/etc/os-release" << EOF
 NAME="OrbitOS"
 PRETTY_NAME="OrbitOS"
@@ -1536,11 +1533,6 @@ EOF
 # ────────────────────────────────────────────────────────────────────────────────
 # ORBITOS EXTRAS: CyberXero Toolkit + PS4 Plasma Theme
 # ────────────────────────────────────────────────────────────────────────────────
-#
-# The PS4 theme requires a live Plasma session (qdbus6 panel scripting,
-# plasmashell restart, KWin effect compilation, video wallpaper activation),
-# so we drop a one-shot autostart that runs on first login then removes itself.
-#
 
 install_orbit_extras() {
     ui_info "Installing OrbitOS extras: CyberXero Toolkit + PS4 Plasma Theme..."
