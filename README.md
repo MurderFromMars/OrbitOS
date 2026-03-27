@@ -1,4 +1,3 @@
-# THIS IS WIP AND NOT PRODUCTION READY YET
 <div align="center">
 
 
