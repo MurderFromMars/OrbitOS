@@ -129,25 +129,11 @@ Launch it from the app menu or run `xero-toolkit` in a terminal.
 
 ---
 
-## 📋 Post-Install Checklist
 
-```bash
-# Update everything
-sudo pacman -Syu
-
-# Launch the toolkit
-xero-toolkit
-
-# Check gaming is working
-gamemoderun %command%   # add to Steam launch options
-mangohud %command%      # HUD overlay
-```
-
----
 
 ## 🤝 Credits
 
-- [XeroLinux](https://xerolinux.xyz) — toolkit foundation and repo
+- [XeroLinux](https://xerolinux.xyz) — toolkit foundation and inspiration for this project
 - [Chaotic-AUR](https://aur.chaotic.cx) — prebuilt AUR packages
 - [CachyOS](https://cachyos.org) — optimised repos and gaming meta
 - [charmbracelet/gum](https://github.com/charmbracelet/gum) — TUI components
@@ -157,10 +143,10 @@ mangohud %command%      # HUD overlay
 ## Why Another Arch Spin?
 
 I grow tired of the issues of Archinstall, and wanted to create a way to conveniently create MY ideal Arch system from an Arch ISO 
-as such this is highly opinonated and won't be for everyone. if you've seen my theming and such in the past then you know what this looks like. as with my themes you will need to set your own keybinds for plasma 
+as such this is highly opinionated and won't be for everyone. if you've seen my theming and such in the past then you know what this looks like. as with my themes you will need to set your own keybinds for plasma 
 
 <div align="center">
 
-Made with 🟣 by [MurderFromMars](https://github.com/MurderFromMars)
+Made with love by [MurderFromMars](https://github.com/MurderFromMars)
 
 </div>
