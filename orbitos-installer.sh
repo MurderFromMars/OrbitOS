@@ -219,7 +219,9 @@ bootstrap_deps() {
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         printf "${_c_cyn}Fetching missing tools: %s${_c_rst}\n" "${missing[*]}"
-        pacman -Sy --noconfirm "${missing[@]}"
+        # Remove stale lock if a previous run was interrupted
+        rm -f /var/lib/pacman/db.lck
+        pacman -Sy --noconfirm --noprogressbar "${missing[@]}" 2>&1
     fi
 }
 
@@ -1537,7 +1539,6 @@ EOF
 [General]
 LogoPath=$logo_path
 Name=OrbitOS
-Version=${ORBIT_VERSION}
 Website=https://github.com/MurderFromMars
 EOF
 
@@ -1567,19 +1568,21 @@ install_orbit_extras() {
         || ui_warn "Some build dependencies failed — toolkit build may fail"
 
     ui_info "  Cloning and building CyberXero Toolkit (Rust — may take a few minutes)..."
+    local toolkit_built="no"
     arch-chroot "$ORBIT_MOUNT" su -l "${CFG[username]}" -c "
         set -e
         cd \$HOME
+        # If rustup is present (pulled in by a dep), ensure it has a toolchain
+        command -v rustup &>/dev/null && rustup default stable 2>/dev/null || true
         git clone https://github.com/MurderFromMars/CyberXero-Toolkit CyberXero-Toolkit 2>&1 | tail -3
         cd CyberXero-Toolkit
         cargo build --release 2>&1 | grep -E '^(error|Compiling|Finished)' | tail -20
-    " || {
-        ui_warn "Toolkit build failed — re-run ~/CyberXero-Toolkit/install.sh after reboot."
-        return 0
-    }
+    " && toolkit_built="yes" \
+      || ui_warn "Toolkit build failed — re-run ~/CyberXero-Toolkit/install.sh after reboot."
 
-    ui_info "  Installing toolkit binaries..."
-    arch-chroot "$ORBIT_MOUNT" bash << TOOLINSTALL || ui_warn "Toolkit binary install had errors — may need manual setup after reboot"
+    if [[ "$toolkit_built" == "yes" ]]; then
+        ui_info "  Installing toolkit binaries..."
+        arch-chroot "$ORBIT_MOUNT" bash << TOOLINSTALL || ui_warn "Toolkit binary install had errors — may need manual setup after reboot"
 set -e
 SRC="/home/${CFG[username]}/CyberXero-Toolkit"
 
@@ -1609,7 +1612,8 @@ fi
 rm -rf "\$SRC/target"
 TOOLINSTALL
 
-    ui_ok "CyberXero Toolkit installed → /opt/xero-toolkit  (run: xero-toolkit)"
+        ui_ok "CyberXero Toolkit installed → /opt/xero-toolkit  (run: xero-toolkit)"
+    fi
 
     # ── PS4 theme — first-boot autostart ─────────────────────────────────────
     ui_info "  Preparing PS4 Plasma Theme first-boot autostart..."
