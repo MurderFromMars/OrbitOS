@@ -1358,7 +1358,8 @@ install_kde_minimal() {
         filelight \
         sweeper \
         kwalletmanager \
-        kdialog
+        kdialog \
+        cachyos-settings
 
     # ── Thumbnail / file previews ────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
