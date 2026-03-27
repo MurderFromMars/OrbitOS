@@ -7,7 +7,7 @@
 ║                            ✨  O R B I T O S  ✨                              ║
 ║                                                                               ║
 ║                   Arch Linux · KDE Plasma · PS4 Theme                         ║
-║                       CyberXero Toolkit · CachyOS                             ║
+║                       CyberXero Toolkit · CachyOS Optimiation                 ║
 ║                                                                               ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 ```
