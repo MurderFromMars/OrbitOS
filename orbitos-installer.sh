@@ -1166,6 +1166,22 @@ add_repos() {
     fi
 }
 
+## Map console keymap names to X11 layout + variant.
+## Sets _x11_layout and _x11_variant for the caller.
+_resolve_x11_keyboard() {
+    local keymap="$1"
+    _x11_variant=""
+    case "$keymap" in
+        uk)         _x11_layout="gb" ;;
+        pt-latin9)  _x11_layout="pt" ;;
+        br-abnt2)   _x11_layout="br" ;;
+        jp106)      _x11_layout="jp" ;;
+        dvorak)     _x11_layout="us"; _x11_variant="dvorak" ;;
+        colemak)    _x11_layout="us"; _x11_variant="colemak" ;;
+        *)          _x11_layout="$keymap" ;;
+    esac
+}
+
 configure_system() {
     arch-chroot "$ORBIT_MOUNT" ln -sf \
         "/usr/share/zoneinfo/${CFG[timezone]}" /etc/localtime
@@ -1176,6 +1192,38 @@ configure_system() {
     arch-chroot "$ORBIT_MOUNT" locale-gen
     echo "LANG=${CFG[locale]}"     > "$ORBIT_MOUNT/etc/locale.conf"
     echo "KEYMAP=${CFG[keyboard]}" > "$ORBIT_MOUNT/etc/vconsole.conf"
+
+    # ── Graphical session keyboard (X11 / XWayland + KDE Wayland) ────────
+    # vconsole.conf only affects TTY consoles; Plasma needs its own config.
+    _resolve_x11_keyboard "${CFG[keyboard]}"
+
+    mkdir -p "$ORBIT_MOUNT/etc/X11/xorg.conf.d"
+    cat > "$ORBIT_MOUNT/etc/X11/xorg.conf.d/00-keyboard.conf" << EOF
+Section "InputClass"
+    Identifier "system-keyboard"
+    MatchIsKeyboard "on"
+    Option "XkbLayout"  "$_x11_layout"
+    Option "XkbModel"   "pc104"
+    Option "XkbVariant" "$_x11_variant"
+EndSection
+EOF
+
+    # KDE Plasma Wayland reads keyboard layout from kxkbrc
+    local kde_dir="$ORBIT_MOUNT/home/${CFG[username]}/.config"
+    mkdir -p "$kde_dir"
+    cat > "$kde_dir/kxkbrc" << EOF
+[Layout]
+DisplayNames=
+LayoutList=$_x11_layout
+LayoutLoopCount=-1
+Model=pc104
+Options=
+ResetOldOptions=false
+Use=true
+VariantList=$_x11_variant
+EOF
+    arch-chroot "$ORBIT_MOUNT" chown -R "${CFG[username]}:${CFG[username]}" \
+        "/home/${CFG[username]}/.config" 2>/dev/null || true
 
     echo "${CFG[hostname]}" > "$ORBIT_MOUNT/etc/hostname"
     cat > "$ORBIT_MOUNT/etc/hosts" << EOF
