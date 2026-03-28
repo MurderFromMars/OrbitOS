@@ -21,6 +21,10 @@ readonly ORBIT_VERSION="1.0"
 readonly ORBIT_NAME="OrbitOS KDE Installer"
 readonly ORBIT_MOUNT="/mnt"
 
+# Optional: set this to a direct URL to your logo PNG (e.g. raw GitHub link).
+# If left empty the installer will generate a simple SVG placeholder instead.
+ORBIT_LOGO_URL="https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/ps4.png"
+
 # Terminal colours — only used as fallback when gum is absent
 _c_red=$'\033[0;31m'
 _c_grn=$'\033[0;32m'
@@ -55,6 +59,7 @@ CFG[reuse_efi]="no"
 CFG[aur_helper]="paru"
 CFG[login_manager]="sddm"
 CFG[cachyos_optimized]="no"
+CFG[handheld]="no"
 
 # Packages added by the user during the optional-packages step
 ADDON_PKGS=""
@@ -215,7 +220,9 @@ bootstrap_deps() {
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         printf "${_c_cyn}Fetching missing tools: %s${_c_rst}\n" "${missing[*]}"
-        pacman -Sy --noconfirm "${missing[@]}" &>/dev/null
+        # Remove stale lock if a previous run was interrupted
+        rm -f /var/lib/pacman/db.lck
+        pacman -Sy --noconfirm --noprogressbar "${missing[@]}" 2>&1
     fi
 }
 
@@ -282,7 +289,7 @@ menu_locales() {
 
     local kb=""
     kb=$(printf '%s\n' "${layouts[@]}" \
-        | gum filter --placeholder "Search layout..." --height 12) || true
+        | gum choose --height 12 --header "Keyboard layout:") || true
     if [[ -n "$kb" ]]; then
         CFG[keyboard]="$kb"
         loadkeys "$kb" 2>/dev/null || true
@@ -696,6 +703,28 @@ menu_cachyos_toggle() {
     sleep 0.5
 }
 
+menu_handheld() {
+    ui_header
+    ui_section "🎮 Handheld Mode"
+    echo ""
+    gum style --foreground 245 --margin "0 2" \
+        "Handheld mode replaces linux-zen with linux-bazzite-bin" \
+        "and installs HHD (Handheld Daemon) for gamepad, gyro, and TDP control." \
+        "" \
+        "Supported: Steam Deck, ROG Ally, Legion Go, GPD Win, OneXPlayer, AYA NEO, etc." \
+        "" \
+        "inputplumber and steamos-manager will be masked; hhd will be enabled instead."
+    echo ""
+    if ui_confirm "Enable handheld mode?"; then
+        CFG[handheld]="yes"
+        ui_ok "Handheld mode: enabled (linux-bazzite-bin + HHD)"
+    else
+        CFG[handheld]="no"
+        ui_ok "Handheld mode: disabled (linux-zen kernel)"
+    fi
+    sleep 0.5
+}
+
 menu_extra_packages() {
     ui_header
     ui_section "📦 Optional Packages"
@@ -809,6 +838,9 @@ show_summary() {
     local cachyos_label="No (vanilla Arch)"
     [[ "${CFG[cachyos_optimized]}" == "yes" ]] && cachyos_label="Yes (x86-64-v3/v4)"
 
+    local handheld_label="No (linux-zen)"
+    [[ "${CFG[handheld]}" == "yes" ]] && handheld_label="Yes (linux-bazzite-bin + HHD)"
+
     gum style --border rounded --border-foreground 212 --padding "1 2" --margin "0 2" \
         "Locale:       ${CFG[locale]}" \
         "Keyboard:     ${CFG[keyboard]}" \
@@ -824,6 +856,7 @@ show_summary() {
         "" \
         "Graphics:     Auto-detect (chwd)" \
         "Optimized:    $cachyos_label" \
+        "Handheld:     $handheld_label" \
         "Boot mode:    $boot_label" \
         "AUR helper:   ${CFG[aur_helper]}" \
         "Login mgr:    ${CFG[login_manager]}" \
@@ -853,6 +886,10 @@ run_main_menu() {
         [[ "${CFG[cachyos_optimized]}" == "yes" ]] \
             && cachyos_status="yes (x86-64-v3/v4)"
 
+        local handheld_status="no"
+        [[ "${CFG[handheld]}" == "yes" ]] \
+            && handheld_status="yes (linux-bazzite-bin + HHD)"
+
         local entries=(
             ""
             "1.  🗺️  Locales            │ ${CFG[locale]} / ${CFG[keyboard]}"
@@ -866,14 +903,15 @@ run_main_menu() {
             "9.  🔐 Login Manager      │ ${CFG[login_manager]}"
             "10. 🚀 CachyOS Optimized  │ $cachyos_status"
             "11. 📦 Extra Packages     │ ${ADDON_PKGS:-none}"
+            "12. 🎮 Handheld Mode      │ $handheld_status"
             "──────────────────────────────────────────────"
-            "12. ✅ Begin Installation"
+            "13. ✅ Begin Installation"
             "0.  ❌ Exit"
         )
 
         local choice=""
         choice=$(printf '%s\n' "${entries[@]}" \
-            | gum choose --height 18 \
+            | gum choose --height 20 \
                 --header $'Configure your installation:\n') || true
 
         case "$choice" in
@@ -888,7 +926,8 @@ run_main_menu() {
             "9."*)  menu_login_manager ;;
             "10."*) menu_cachyos_toggle ;;
             "11."*) menu_extra_packages ;;
-            "12."*)
+            "12."*) menu_handheld ;;
+            "13."*)
                 if validate_config; then
                     show_summary
                     local prompt="THIS WILL ERASE ${CFG[disk]}. Continue?"
@@ -1049,12 +1088,15 @@ add_temp_repo() {
 
     pacman_set_parallel /etc/pacman.conf
     pacman_set_opts     /etc/pacman.conf
-    pacman -Sy
+    pacman -Sy --noconfirm
 }
 
 install_base_system() {
     add_temp_repo
 
+    # linux-zen is always used as the pacstrap kernel.
+    # In handheld mode it will be replaced by linux-bazzite-bin after
+    # repos are configured (install_handheld_kernel runs later).
     local pkgs="base base-devel linux-zen linux-zen-headers"
 
     grep -q "GenuineIntel" /proc/cpuinfo && pkgs+=" intel-ucode"
@@ -1096,18 +1138,32 @@ add_repos() {
     if ! grep -q "\[cachyos\]" "$ORBIT_MOUNT/etc/pacman.conf"; then
         ui_info "  Adding CachyOS repository..."
         arch-chroot "$ORBIT_MOUNT" bash -c '
+            set -e
             cd /tmp
             curl -sSL https://mirror.cachyos.org/cachyos-repo.tar.xz -o cachyos-repo.tar.xz
             tar xf cachyos-repo.tar.xz
             cd cachyos-repo
             yes | ./cachyos-repo.sh
             rm -rf /tmp/cachyos-repo /tmp/cachyos-repo.tar.xz
-        '
+        ' || ui_warn "cachyos-repo.sh reported errors — CachyOS packages may not be available"
     fi
 
     pacman_set_parallel "$ORBIT_MOUNT/etc/pacman.conf"
     pacman_set_opts     "$ORBIT_MOUNT/etc/pacman.conf"
-    arch-chroot "$ORBIT_MOUNT" pacman -Sy
+    arch-chroot "$ORBIT_MOUNT" pacman -Syy --noconfirm
+
+    # ── Verify CachyOS repo is functional ─────────────────────────────────
+    if arch-chroot "$ORBIT_MOUNT" pacman -Si cachyos-gaming-meta &>/dev/null; then
+        ui_ok "CachyOS repository verified"
+    else
+        ui_warn "CachyOS repo may not be fully configured — retrying sync..."
+        arch-chroot "$ORBIT_MOUNT" pacman -Syy --noconfirm
+        if arch-chroot "$ORBIT_MOUNT" pacman -Si cachyos-gaming-meta &>/dev/null; then
+            ui_ok "CachyOS repository verified on retry"
+        else
+            ui_warn "CachyOS packages not found — gaming meta and chwd may fail"
+        fi
+    fi
 }
 
 configure_system() {
@@ -1224,21 +1280,37 @@ create_user() {
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
+# AUR HELPER (standalone — called early so handheld kernel swap can use it)
+# ────────────────────────────────────────────────────────────────────────────────
+
+install_aur_helper() {
+    ui_info "Installing AUR helper (${CFG[aur_helper]})..."
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed "${CFG[aur_helper]}" \
+        || ui_warn "AUR helper install failed — install manually after reboot"
+    ui_ok "AUR helper: ${CFG[aur_helper]}"
+}
+
+# ────────────────────────────────────────────────────────────────────────────────
 # HARDWARE DRIVERS (chwd)
 # ────────────────────────────────────────────────────────────────────────────────
 
 install_drivers_chwd() {
-    ui_info "  Verifying kernel state (linux-zen only)..."
+    ui_info "  Verifying kernel state..."
 
-    local stray=""
-    stray=$(arch-chroot "$ORBIT_MOUNT" pacman -Qqs '^linux-cachyos' 2>/dev/null || true)
-    if [[ -n "$stray" ]]; then
-        ui_warn "Unexpected CachyOS kernels found — removing to avoid conflicts: $stray"
-        arch-chroot "$ORBIT_MOUNT" pacman -Rdd --noconfirm $stray 2>/dev/null || true
+    # In handheld mode linux-zen was already swapped out; only enforce it on
+    # non-handheld installs where zen is expected to be the active kernel.
+    if [[ "${CFG[handheld]}" != "yes" ]]; then
+        local stray=""
+        stray=$(arch-chroot "$ORBIT_MOUNT" pacman -Qqs '^linux-cachyos' 2>/dev/null || true)
+        if [[ -n "$stray" ]]; then
+            ui_warn "Unexpected CachyOS kernels found — removing to avoid conflicts: $stray"
+            arch-chroot "$ORBIT_MOUNT" pacman -Rdd --noconfirm $stray 2>/dev/null || true
+        fi
+        arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed linux-zen linux-zen-headers
+        ui_ok "Kernel: linux-zen + linux-zen-headers"
+    else
+        ui_ok "Kernel: linux-bazzite-bin (handheld mode)"
     fi
-
-    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed linux-zen linux-zen-headers
-    ui_ok "Kernel: linux-zen + linux-zen-headers"
 
     ui_info "  Installing chwd hardware detector..."
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed chwd \
@@ -1246,7 +1318,7 @@ install_drivers_chwd() {
     ui_ok "chwd installed"
 
     ui_info "  Running hardware auto-detection..."
-    arch-chroot "$ORBIT_MOUNT" chwd -a pci -f \
+    arch-chroot "$ORBIT_MOUNT" chwd -a -f \
         || { ui_warn "chwd auto-detection failed — install drivers manually after reboot."; return 0; }
     ui_ok "Hardware drivers installed via chwd"
 
@@ -1274,6 +1346,91 @@ install_drivers_chwd() {
 
     arch-chroot "$ORBIT_MOUNT" mkinitcpio -P
     ui_ok "Initramfs rebuilt"
+
+    # ── Handheld post-chwd services ─────────────────────────────────────────
+    setup_handheld_services
+}
+
+# ────────────────────────────────────────────────────────────────────────────────
+# HANDHELD KERNEL + SERVICES
+# ────────────────────────────────────────────────────────────────────────────────
+
+# Called after add_repos + create_user + install_aur_helper: swaps linux-zen
+# for linux-bazzite-bin when handheld mode is enabled.  linux-zen is kept
+# during pacstrap so the chroot is always in a bootable state while the
+# installation proceeds.
+#
+# Requires: user account and AUR helper already present in the chroot
+# (linux-bazzite-bin is NOT in Chaotic-AUR so the AUR helper is the
+# primary install path).
+install_handheld_kernel() {
+    [[ "${CFG[handheld]}" == "yes" ]] || return 0
+
+    ui_info "  Installing Bazzite kernel (linux-bazzite-bin)..."
+
+    # linux-bazzite-bin is an AUR package; try the AUR helper first since
+    # that is the expected path, then fall back to a direct pacman attempt
+    # in case it ever lands in a configured repo.
+    local bazzite_installed="no"
+
+    if arch-chroot "$ORBIT_MOUNT" su -l "${CFG[username]}" -c \
+            "${CFG[aur_helper]} -S --noconfirm --needed linux-bazzite-bin" \
+            2>/dev/null; then
+        bazzite_installed="yes"
+        ui_ok "linux-bazzite-bin installed via ${CFG[aur_helper]}"
+    else
+        ui_info "  AUR build failed — trying pacman repos as fallback..."
+        if arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
+                linux-bazzite-bin 2>/dev/null; then
+            bazzite_installed="yes"
+            ui_ok "linux-bazzite-bin installed via pacman"
+        fi
+    fi
+
+    if [[ "$bazzite_installed" != "yes" ]]; then
+        ui_warn "Bazzite kernel install failed — keeping linux-zen as fallback."
+        CFG[handheld]="no"
+        return 0
+    fi
+
+    # Remove linux-zen now that bazzite is in place.
+    # -Rdd skips dependency checks so grub/mkinitcpio hooks don't fire mid-swap.
+    ui_info "  Removing linux-zen..."
+    arch-chroot "$ORBIT_MOUNT" pacman -Rdd --noconfirm linux-zen linux-zen-headers 2>/dev/null \
+        || ui_warn "linux-zen removal had errors — may need manual cleanup after reboot"
+    ui_ok "linux-zen removed"
+
+    # Rebuild initramfs for the new kernel and regenerate the GRUB config so
+    # the bazzite vmlinuz/initrd paths are picked up correctly.
+    ui_info "  Rebuilding initramfs and GRUB config for Bazzite kernel..."
+    arch-chroot "$ORBIT_MOUNT" mkinitcpio -P
+    arch-chroot "$ORBIT_MOUNT" grub-mkconfig -o /boot/grub/grub.cfg
+    ui_ok "Bazzite kernel is now the active boot target"
+}
+
+# Called at the end of install_drivers_chwd when handheld mode is active.
+# Installs hhd + hhd-ui from CachyOS/Chaotic repos, masks the conflicting
+# inputplumber and steamos-manager units, then enables the per-user hhd service.
+setup_handheld_services() {
+    [[ "${CFG[handheld]}" == "yes" ]] || return 0
+
+    ui_info "  Installing HHD and HHD-UI..."
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed hhd hhd-ui \
+        || {
+            ui_warn "HHD install failed — install manually after reboot: sudo pacman -S hhd hhd-ui"
+            return 0
+        }
+    ui_ok "hhd + hhd-ui installed"
+
+    ui_info "  Masking conflicting services (inputplumber, steamos-manager)..."
+    arch-chroot "$ORBIT_MOUNT" systemctl mask inputplumber    2>/dev/null || true
+    arch-chroot "$ORBIT_MOUNT" systemctl mask steamos-manager 2>/dev/null || true
+    ui_ok "inputplumber and steamos-manager masked"
+
+    ui_info "  Enabling hhd@${CFG[username]}..."
+    arch-chroot "$ORBIT_MOUNT" systemctl enable "hhd@${CFG[username]}" \
+        || ui_warn "Could not enable hhd — run after reboot: sudo systemctl enable hhd@\$(whoami)"
+    ui_ok "hhd@${CFG[username]} enabled"
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -1308,39 +1465,22 @@ EOF
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
-# MINIMAL KDE PLASMA
+# KDE PLASMA DESKTOP
 # ────────────────────────────────────────────────────────────────────────────────
-#
-# Philosophy: core Plasma shell + Wayland, the essential KDE app set, and
-# nothing else. No bloat, no ISO tools, no duplicate utilities.
 #
 
 install_kde_minimal() {
-    ui_info "Installing minimal KDE Plasma..."
+    ui_info "Installing KDE Plasma desktop..."
 
-    arch-chroot "$ORBIT_MOUNT" pacman -Syu --noconfirm
-
+    # ── Plasma meta — full upstream-tested desktop ────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
-        plasma-desktop plasma-workspace kwin systemsettings \
-        kactivitymanagerd kdecoration layer-shell-qt \
-        polkit-kde-agent ksystemstats plasma-integration \
-        kscreenlocker kglobalacceld \
-        kscreen libkscreen \
-        plasma-nm plasma-pa bluedevil \
-        powerdevil \
-        breeze breeze-gtk \
-        kdeplasma-addons \
-        kinfocenter \
-        plasma-systemmonitor \
-        xdg-desktop-portal-kde \
-        polkit-qt6 \
-        qqc2-breeze-style
+        plasma-meta
 
+    # ── NVIDIA Wayland support (not in plasma-meta) ─────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
-        egl-wayland qt6-wayland lib32-wayland wayland-protocols \
-        kwayland-integration plasma-wayland-protocols \
-        xorg-xwayland
+        egl-wayland
 
+    # ── KDE applications ─────────────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
         dolphin dolphin-plugins \
         konsole \
@@ -1357,11 +1497,14 @@ install_kde_minimal() {
         kwalletmanager \
         kdialog
 
+    # ── Thumbnail / file previews ────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
         tumbler ffmpegthumbnailer poppler-qt6 \
         kdegraphics-thumbnailers
 
+    # ── System utilities ─────────────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
+        gnome-disk-utility \
         gvfs gvfs-mtp gvfs-smb gvfs-afc udisks2 udiskie \
         xdg-utils xdg-user-dirs \
         flatpak \
@@ -1381,9 +1524,9 @@ install_kde_minimal() {
         ttf-ubuntu-font-family adobe-source-sans-fonts \
         noto-fonts noto-fonts-emoji
 
-    ui_info "Installing AUR helper (${CFG[aur_helper]})..."
-    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed "${CFG[aur_helper]}" \
-        || ui_warn "AUR helper install failed — install manually after reboot"
+    # AUR helper is already installed (install_aur_helper ran earlier).
+    # --needed ensures this is a harmless no-op if already present.
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed "${CFG[aur_helper]}" 2>/dev/null || true
 
     case "${CFG[login_manager]}" in
         plasma-login)
@@ -1402,10 +1545,13 @@ install_kde_minimal() {
             || ui_warn "Some extra packages failed — install manually after reboot"
     fi
 
+    # tuned-ppd provides a power-profiles-daemon compatibility layer;
+    # enable tuned-ppd directly rather than the old unit name.
     arch-chroot "$ORBIT_MOUNT" systemctl enable \
         cups.socket \
         bluetooth \
-        power-profiles-daemon \
+        tuned \
+        tuned-ppd \
         switcheroo-control \
         wpa_supplicant
 
@@ -1422,17 +1568,108 @@ install_kde_minimal() {
     arch-chroot "$ORBIT_MOUNT" chown "${CFG[username]}:${CFG[username]}" \
         "/home/${CFG[username]}/.bashrc" 2>/dev/null || true
 
-    ui_ok "Minimal KDE Plasma installed"
+    ui_ok "KDE Plasma desktop installed"
+}
+
+# ────────────────────────────────────────────────────────────────────────────────
+# DISTRO BRANDING — KDE System Settings logo + kcm-about-distroinfo
+# ────────────────────────────────────────────────────────────────────────────────
+#
+# Installs the OrbitOS logo to /usr/share/pixmaps/orbitos.png and wires it
+# into both os-release (LOGO=orbitos) and the KDE About This System panel
+# via kcm-about-distroinfo + /etc/xdg/kcm-about-distrorc.
+#
+# Logo source priority:
+#   1. $ORBIT_LOGO_URL   — direct URL you set at the top of this script
+#   2. Inline SVG        — auto-generated placeholder if no URL is set
+#
+
+install_distro_branding() {
+    ui_info "  Installing KDE distro branding (logo + About This System)..."
+
+
+    local icon_dir="$ORBIT_MOUNT/usr/share/icons/hicolor"
+    mkdir -p "$icon_dir/scalable/apps"
+    mkdir -p "$ORBIT_MOUNT/usr/share/pixmaps"
+
+    local logo_installed="no"
+
+    if [[ -n "$ORBIT_LOGO_URL" ]]; then
+        ui_info "  Fetching OrbitOS logo from $ORBIT_LOGO_URL ..."
+        if curl -fsSL "$ORBIT_LOGO_URL" \
+                -o "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" 2>/dev/null; then
+            # Install PNG at multiple icon sizes so KDE finds it
+            for size in 64 128 256; do
+                mkdir -p "$icon_dir/${size}x${size}/apps"
+                cp "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" \
+                   "$icon_dir/${size}x${size}/apps/orbitos.png"
+            done
+            logo_installed="yes"
+            ui_ok "Logo downloaded and installed to icon theme"
+        else
+            ui_warn "Logo download failed — generating SVG placeholder"
+        fi
+    fi
+
+    if [[ "$logo_installed" == "no" ]]; then
+        cat > "$icon_dir/scalable/apps/orbitos.svg" << 'SVGEOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" rx="32" fill="#0d1117"/>
+  <ellipse cx="128" cy="128" rx="88" ry="88"
+           fill="none" stroke="#17d4e8" stroke-width="8" stroke-dasharray="20 10"/>
+  <circle cx="128" cy="128" r="36" fill="#17d4e8"/>
+  <text x="128" y="228" font-family="sans-serif" font-size="28" font-weight="bold"
+        fill="#ffffff" text-anchor="middle" letter-spacing="4">ORBIT</text>
+</svg>
+SVGEOF
+        
+        cp "$icon_dir/scalable/apps/orbitos.svg" \
+           "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.svg"
+        ui_ok "SVG placeholder logo installed (replace $icon_dir/scalable/apps/orbitos.svg with your real logo)"
+    fi
+
+    # Rebuild icon cache so KDE picks it up
+    arch-chroot "$ORBIT_MOUNT" gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+
+    
+    cat > "$ORBIT_MOUNT/etc/os-release" << EOF
+NAME="OrbitOS"
+PRETTY_NAME="OrbitOS"
+ID=arch
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;23;147;209"
+HOME_URL="https://github.com/MurderFromMars"
+LOGO=orbitos
+EOF
+    cp "$ORBIT_MOUNT/etc/os-release" "$ORBIT_MOUNT/usr/lib/os-release" 2>/dev/null || true
+
+    cat > "$ORBIT_MOUNT/etc/lsb-release" << 'EOF'
+DISTRIB_ID="OrbitOS"
+DISTRIB_RELEASE="rolling"
+DISTRIB_DESCRIPTION="OrbitOS"
+EOF
+
+    # ── Optional: kcm-about-distroinfo for KDE About panel ────────────────
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed kcm-about-distroinfo 2>/dev/null || true
+
+    local logo_path="/usr/share/pixmaps/orbitos.png"
+    [[ "$logo_installed" == "no" ]] && logo_path="/usr/share/icons/hicolor/scalable/apps/orbitos.svg"
+
+    mkdir -p "$ORBIT_MOUNT/etc/xdg"
+    cat > "$ORBIT_MOUNT/etc/xdg/kcm-about-distrorc" << EOF
+[General]
+LogoPath=$logo_path
+Name=OrbitOS
+Website=https://github.com/MurderFromMars
+EOF
+
+    ui_ok "KDE About This System: OrbitOS branding configured"
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
 # ORBITOS EXTRAS: CyberXero Toolkit + PS4 Plasma Theme
 # ────────────────────────────────────────────────────────────────────────────────
-#
-# The PS4 theme requires a live Plasma session (qdbus6 panel scripting,
-# plasmashell restart, KWin effect compilation, video wallpaper activation),
-# so we drop a one-shot autostart that runs on first login then removes itself.
-#
 
 install_orbit_extras() {
     ui_info "Installing OrbitOS extras: CyberXero Toolkit + PS4 Plasma Theme..."
@@ -1448,19 +1685,21 @@ install_orbit_extras() {
         || ui_warn "Some build dependencies failed — toolkit build may fail"
 
     ui_info "  Cloning and building CyberXero Toolkit (Rust — may take a few minutes)..."
+    local toolkit_built="no"
     arch-chroot "$ORBIT_MOUNT" su -l "${CFG[username]}" -c "
         set -e
         cd \$HOME
+        # If rustup is present (pulled in by a dep), ensure it has a toolchain
+        command -v rustup &>/dev/null && rustup default stable 2>/dev/null || true
         git clone https://github.com/MurderFromMars/CyberXero-Toolkit CyberXero-Toolkit 2>&1 | tail -3
         cd CyberXero-Toolkit
         cargo build --release 2>&1 | grep -E '^(error|Compiling|Finished)' | tail -20
-    " || {
-        ui_warn "Toolkit build failed — re-run ~/CyberXero-Toolkit/install.sh after reboot."
-        return 0
-    }
+    " && toolkit_built="yes" \
+      || ui_warn "Toolkit build failed — re-run ~/CyberXero-Toolkit/install.sh after reboot."
 
-    ui_info "  Installing toolkit binaries..."
-    arch-chroot "$ORBIT_MOUNT" bash << TOOLINSTALL
+    if [[ "$toolkit_built" == "yes" ]]; then
+        ui_info "  Installing toolkit binaries..."
+        arch-chroot "$ORBIT_MOUNT" bash << TOOLINSTALL || ui_warn "Toolkit binary install had errors — may need manual setup after reboot"
 set -e
 SRC="/home/${CFG[username]}/CyberXero-Toolkit"
 
@@ -1490,7 +1729,8 @@ fi
 rm -rf "\$SRC/target"
 TOOLINSTALL
 
-    ui_ok "CyberXero Toolkit installed → /opt/xero-toolkit  (run: xero-toolkit)"
+        ui_ok "CyberXero Toolkit installed → /opt/xero-toolkit  (run: xero-toolkit)"
+    fi
 
     # ── PS4 theme — first-boot autostart ─────────────────────────────────────
     ui_info "  Preparing PS4 Plasma Theme first-boot autostart..."
@@ -1586,11 +1826,13 @@ perform_installation() {
     gum style --foreground 212 --bold --margin "1 2" "🚀 Starting OrbitOS installation..."
     echo ""
 
+    # ── Phase 1: Disk ────────────────────────────────────────────────────────
     ui_step "Partitioning disk..."     partition_disk
     [[ "${CFG[encrypt]}" == "yes" ]] && ui_step "Setting up encryption..." setup_encryption
     ui_step "Formatting partitions..." format_partitions
     ui_step "Mounting filesystems..."  mount_filesystems
 
+    # ── Phase 2: Base system + repos ─────────────────────────────────────────
     ui_info "Installing base system (this may take a while)..."
     install_base_system
     ui_ok "Base system installed"
@@ -1606,29 +1848,61 @@ perform_installation() {
         ui_ok "Packages upgraded to CachyOS optimized builds"
     fi
 
+    # ── Phase 3: User + AUR helper (needed before handheld kernel swap) ──────
+    # create_user and install_aur_helper are moved early so that
+    # install_handheld_kernel can build linux-bazzite-bin from the AUR
+    # as the unprivileged user with paru/yay.
+    ui_step "Creating user account..."  create_user
+    install_aur_helper
+
+    # ── Phase 4: Handheld kernel swap ────────────────────────────────────────
+    # Must run before install_bootloader so grub-mkconfig picks up the bazzite
+    # vmlinuz/initrd paths when it scans /boot.
+    if [[ "${CFG[handheld]}" == "yes" ]]; then
+        ui_info "Switching to Bazzite kernel for handheld mode..."
+        install_handheld_kernel
+        ui_ok "Handheld kernel configured"
+    fi
+
+    # ── Phase 5: System config + bootloader ──────────────────────────────────
     ui_step "Configuring system..."    configure_system
     ui_step "Installing bootloader..." install_bootloader
-    ui_step "Creating user account..."  create_user
 
+    # ── Phase 6: Drivers + swap ──────────────────────────────────────────────
     ui_info "Auto-detecting hardware and installing drivers (chwd)..."
     install_drivers_chwd
     ui_ok "Hardware drivers configured"
 
-    ui_info "Installing CachyOS gaming packages..."
-    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
-        cachyos-gaming-meta cachyos-gaming-applications \
-        || ui_warn "Some gaming packages failed — run: pacman -S cachyos-gaming-meta cachyos-gaming-applications"
-    ui_ok "Gaming packages installed"
-
     ui_step "Configuring swap..."      setup_swap_system
 
+    # ── Phase 7: Desktop + gaming + branding + extras ────────────────────────
     ui_info "Installing minimal KDE Plasma..."
     install_kde_minimal
     ui_ok "KDE Plasma installed"
 
+    ui_info "Installing CachyOS gaming packages..."
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
+        cachyos-gaming-meta cachyos-gaming-applications \
+        || {
+            ui_warn "Gaming packages failed — retrying after database refresh..."
+            arch-chroot "$ORBIT_MOUNT" pacman -Syy --noconfirm
+            arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
+                cachyos-gaming-meta cachyos-gaming-applications \
+                || ui_warn "Gaming packages still failed — install manually after reboot: sudo pacman -S cachyos-gaming-meta cachyos-gaming-applications"
+        }
+    ui_ok "Gaming packages installed"
+
+    ui_info "Applying OrbitOS distro branding..."
+    install_distro_branding
+    ui_ok "Distro branding applied"
+
     ui_info "Installing OrbitOS extras (CyberXero Toolkit + PS4 Theme)..."
     install_orbit_extras
     ui_ok "OrbitOS extras installed"
+
+    local handheld_note=""
+    [[ "${CFG[handheld]}" == "yes" ]] \
+        && handheld_note="  • HHD Handheld Daemon → active on boot (run hhd-ui for settings)"
 
     ui_header
     gum style --foreground 82 --bold --border double --border-foreground 82 \
@@ -1641,7 +1915,8 @@ perform_installation() {
         "On first login:" \
         "  • Gaming (Steam, Lutris, Heroic) → ready to go" \
         "  • CyberXero Toolkit → run: xero-toolkit" \
-        "  • PS4 Plasma Theme  → applies automatically"
+        "  • PS4 Plasma Theme  → applies automatically" \
+        "$handheld_note"
     echo ""
 }
 
