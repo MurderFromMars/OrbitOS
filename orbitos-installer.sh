@@ -1094,8 +1094,8 @@ add_temp_repo() {
 install_base_system() {
     add_temp_repo
 
-    # linux-zen is always the pacstrap kernel.  In handheld mode it stays
-    # as a GRUB fallback; linux-bazzite-bin is built from AUR on first login.
+    # linux-zen is always the pacstrap kernel.  In handheld mode it gets
+    # replaced by linux-bazzite-bin (built from AUR) on first Plasma login.
     local pkgs="base base-devel linux-zen linux-zen-headers"
 
     grep -q "GenuineIntel" /proc/cpuinfo && pkgs+=" intel-ucode"
@@ -1354,7 +1354,7 @@ install_drivers_chwd() {
     fi
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed linux-zen linux-zen-headers
     if [[ "${CFG[handheld]}" == "yes" ]]; then
-        ui_ok "Kernel: linux-zen (bazzite installs on first login, zen stays as fallback)"
+        ui_ok "Kernel: linux-zen (bazzite replaces it on first login)"
     else
         ui_ok "Kernel: linux-zen + linux-zen-headers"
     fi
@@ -1404,9 +1404,9 @@ install_drivers_chwd() {
 
 # Writes a marker file so the first-boot autostart script knows to build
 # linux-bazzite-bin from the AUR on first Plasma login.  The AUR build is
-# deferred because it's unreliable inside an install chroot.  linux-zen
-# stays installed as a GRUB fallback.  grub-hook auto-regenerates the GRUB
-# config when bazzite is installed, making it the default boot entry.
+# deferred because it's unreliable inside an install chroot.  After bazzite
+# is installed, linux-zen is removed so GRUB boots bazzite cleanly.
+# grub-hook auto-regenerates the GRUB config on kernel install/remove.
 # HHD + services are still installed during the main install (they work
 # fine on linux-zen until bazzite is ready).
 prepare_handheld_marker() {
@@ -1808,11 +1808,11 @@ else
     warn "Re-run manually:  bash ~/Playstation-4-Plasma/install.sh"
 fi
 
-# ── Handheld Kernel Install (linux-bazzite-bin alongside linux-zen) ───────────
+# ── Handheld Kernel Swap (linux-zen → linux-bazzite-bin) ──────────────────────
 # Only runs if the installer left the orbitos-handheld marker file.
 # Builds from AUR on the live system where it actually works reliably.
-# grub-hook auto-regenerates GRUB config and bazzite becomes the default
-# boot entry; linux-zen remains as a fallback in the GRUB menu.
+# After a successful install, linux-zen is removed so bazzite is the
+# only boot target — no ambiguity in GRUB.
 if [[ -f "$HANDHELD_MARKER" ]]; then
     echo ""
     printf "\033[1;35m── Handheld Mode: Bazzite Kernel ──\033[0m\n\n"
@@ -1826,16 +1826,22 @@ if [[ -f "$HANDHELD_MARKER" ]]; then
     if [[ -z "$AUR_HELPER" ]]; then
         err "No AUR helper found (paru/yay) — cannot install linux-bazzite-bin."
         warn "Install manually: paru -S linux-bazzite-bin"
+        warn "Then remove linux-zen: sudo pacman -Rdd linux-zen linux-zen-headers"
     else
         log "Building linux-bazzite-bin via $AUR_HELPER (this may take a while)..."
         if $AUR_HELPER -S --noconfirm --needed linux-bazzite-bin; then
-            ok "linux-bazzite-bin installed (linux-zen kept as fallback)"
+            ok "linux-bazzite-bin installed"
+
+            log "Removing linux-zen..."
+            sudo pacman -Rdd --noconfirm linux-zen linux-zen-headers 2>/dev/null \
+                && ok "linux-zen removed" \
+                || warn "linux-zen removal had errors — remove manually: sudo pacman -Rdd linux-zen linux-zen-headers"
+
             rm -f "$HANDHELD_MARKER"
-            ok "Handheld kernel setup complete!"
+            ok "Handheld kernel swap complete!"
             echo ""
             warn "⚠️  A reboot is required to boot into the Bazzite kernel."
             warn "   Run: sudo reboot"
-            warn "   (Select linux-zen from GRUB if you ever need a fallback)"
         else
             err "linux-bazzite-bin build failed."
             warn "Retry manually: $AUR_HELPER -S linux-bazzite-bin"
@@ -1909,8 +1915,8 @@ perform_installation() {
     # ── Phase 4: Handheld marker ─────────────────────────────────────────────
     # If handheld mode is enabled, write a marker file.  The bazzite kernel
     # build is deferred to the first-boot autostart script where AUR builds
-    # work reliably.  grub-hook will auto-regenerate GRUB when bazzite is
-    # installed, making it default while linux-zen stays as a fallback.
+    # work reliably.  After bazzite installs, linux-zen is removed and
+    # grub-hook regenerates the GRUB config automatically.
     # HHD + services are installed normally and work fine on linux-zen.
     if [[ "${CFG[handheld]}" == "yes" ]]; then
         prepare_handheld_marker
@@ -1955,8 +1961,7 @@ perform_installation() {
     local handheld_note=""
     [[ "${CFG[handheld]}" == "yes" ]] \
         && handheld_note="  • HHD Handheld Daemon → active on boot (run hhd-ui for settings)
-  • Bazzite kernel → builds on first Plasma login (reboot after)
-  • linux-zen stays as a GRUB fallback"
+  • Bazzite kernel → builds on first Plasma login (reboot after)"
 
     ui_header
     gum style --foreground 82 --bold --border double --border-foreground 82 \
