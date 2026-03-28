@@ -59,6 +59,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/
 - **AUR helper** — paru or yay
 - **Optional packages** — Firefox, Brave, Discord, VSCodium, Steam, and more
 - **CachyOS repos** — optimised x86-64-v3/v4 packages where supported
+- **Handheld mode** — linux-bazzite-bin kernel + HHD for portable gaming PCs
 - **Self-contained** — installs its own dependencies from the live ISO
 
 ---
@@ -94,11 +95,55 @@ OrbitOS ships the full CachyOS gaming layer on top of Arch:
 
 CachyOS packages are compiled with optimisations for modern CPUs and take precedence over standard Arch packages where both exist.
 
+---
+
+## 🕹️ Handheld Mode
+
+OrbitOS includes optional handheld support for portable gaming PCs. Enable it from the installer menu (option 12) before starting the install.
+
+### Supported Devices
+
+Steam Deck, ROG Ally, ROG Ally X, Legion Go, GPD Win (3/4/Max), OneXPlayer, AYA NEO, MSI Claw, and other handheld PCs with HHD-compatible hardware.
+
+### What It Does
+
+**During installation:**
+- Installs [HHD (Handheld Daemon)](https://github.com/hhd-vg/hhd) + hhd-ui for gamepad emulation, gyro, and TDP control
+- Masks `inputplumber` and `steamos-manager` to prevent conflicts
+- Enables `hhd@<user>` as a systemd service — active immediately on first boot
+- Writes a marker file for the first-boot kernel swap
+
+**On first Plasma login:**
+- The first-boot setup script builds `linux-bazzite-bin` from the AUR automatically (this takes a few minutes — a terminal window stays open with progress)
+- Once installed, `linux-zen` is removed and `grub-hook` regenerates the GRUB config
+- The user is prompted to reboot into the Bazzite kernel
+
+### Why Deferred?
+
+AUR builds require a working `makepkg` environment with a non-root user and functioning package manager — conditions that are unreliable inside an install chroot. By deferring the kernel build to the first live Plasma session, it just works.
+
+HHD itself is installed from CachyOS repos during the main install and works fine on `linux-zen` in the interim, so gamepad input and basic controls are functional from the very first boot.
+
+### Manual Recovery
+
+If the first-boot kernel build fails for any reason:
+
+```bash
+# Build and install the Bazzite kernel
+paru -S linux-bazzite-bin
+
+# Remove linux-zen
+sudo pacman -Rdd linux-zen linux-zen-headers
+
+# grub-hook handles the rest — just reboot
+sudo reboot
+```
 
 ---
+
 ## Cachy CHWD integration
 
-installs and runs chwd as part of the installation script, this automatically manages drivers in the same manner as cachy meaning nvidia drivers will be setup automatically and appropriately free of user intervention as well as profiles for hybrid gpu setups optimus etc 
+installs and runs chwd as part of the installation script, this automatically manages drivers in the same manner as cachy meaning nvidia drivers will be setup automatically and appropriately free of user intervention as well as profiles for hybrid gpu setups optimus etc this is also the backbone of handheld support. adding the needed handheld packages and configs for a steam deck like experience 
 
 ## 🎨 PS4 Plasma Theme
 
