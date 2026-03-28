@@ -59,6 +59,7 @@ CFG[reuse_efi]="no"
 CFG[aur_helper]="paru"
 CFG[login_manager]="sddm"
 CFG[cachyos_optimized]="no"
+CFG[handheld]="no"
 
 # Packages added by the user during the optional-packages step
 ADDON_PKGS=""
@@ -288,7 +289,7 @@ menu_locales() {
 
     local kb=""
     kb=$(printf '%s\n' "${layouts[@]}" \
-        | gum filter --placeholder "Search layout..." --height 12) || true
+        | gum choose --height 12 --header "Keyboard layout:") || true
     if [[ -n "$kb" ]]; then
         CFG[keyboard]="$kb"
         loadkeys "$kb" 2>/dev/null || true
@@ -702,6 +703,28 @@ menu_cachyos_toggle() {
     sleep 0.5
 }
 
+menu_handheld() {
+    ui_header
+    ui_section "🎮 Handheld Mode"
+    echo ""
+    gum style --foreground 245 --margin "0 2" \
+        "Handheld mode replaces linux-zen with linux-bazzite-bin" \
+        "and installs HHD (Handheld Daemon) for gamepad, gyro, and TDP control." \
+        "" \
+        "Supported: Steam Deck, ROG Ally, Legion Go, GPD Win, OneXPlayer, AYA NEO, etc." \
+        "" \
+        "inputplumber and steamos-manager will be masked; hhd will be enabled instead."
+    echo ""
+    if ui_confirm "Enable handheld mode?"; then
+        CFG[handheld]="yes"
+        ui_ok "Handheld mode: enabled (linux-bazzite-bin + HHD)"
+    else
+        CFG[handheld]="no"
+        ui_ok "Handheld mode: disabled (linux-zen kernel)"
+    fi
+    sleep 0.5
+}
+
 menu_extra_packages() {
     ui_header
     ui_section "📦 Optional Packages"
@@ -815,6 +838,9 @@ show_summary() {
     local cachyos_label="No (vanilla Arch)"
     [[ "${CFG[cachyos_optimized]}" == "yes" ]] && cachyos_label="Yes (x86-64-v3/v4)"
 
+    local handheld_label="No (linux-zen)"
+    [[ "${CFG[handheld]}" == "yes" ]] && handheld_label="Yes (linux-bazzite-bin + HHD)"
+
     gum style --border rounded --border-foreground 212 --padding "1 2" --margin "0 2" \
         "Locale:       ${CFG[locale]}" \
         "Keyboard:     ${CFG[keyboard]}" \
@@ -830,6 +856,7 @@ show_summary() {
         "" \
         "Graphics:     Auto-detect (chwd)" \
         "Optimized:    $cachyos_label" \
+        "Handheld:     $handheld_label" \
         "Boot mode:    $boot_label" \
         "AUR helper:   ${CFG[aur_helper]}" \
         "Login mgr:    ${CFG[login_manager]}" \
@@ -859,6 +886,10 @@ run_main_menu() {
         [[ "${CFG[cachyos_optimized]}" == "yes" ]] \
             && cachyos_status="yes (x86-64-v3/v4)"
 
+        local handheld_status="no"
+        [[ "${CFG[handheld]}" == "yes" ]] \
+            && handheld_status="yes (linux-bazzite-bin + HHD)"
+
         local entries=(
             ""
             "1.  🗺️  Locales            │ ${CFG[locale]} / ${CFG[keyboard]}"
@@ -872,14 +903,15 @@ run_main_menu() {
             "9.  🔐 Login Manager      │ ${CFG[login_manager]}"
             "10. 🚀 CachyOS Optimized  │ $cachyos_status"
             "11. 📦 Extra Packages     │ ${ADDON_PKGS:-none}"
+            "12. 🎮 Handheld Mode      │ $handheld_status"
             "──────────────────────────────────────────────"
-            "12. ✅ Begin Installation"
+            "13. ✅ Begin Installation"
             "0.  ❌ Exit"
         )
 
         local choice=""
         choice=$(printf '%s\n' "${entries[@]}" \
-            | gum choose --height 18 \
+            | gum choose --height 20 \
                 --header $'Configure your installation:\n') || true
 
         case "$choice" in
@@ -894,7 +926,8 @@ run_main_menu() {
             "9."*)  menu_login_manager ;;
             "10."*) menu_cachyos_toggle ;;
             "11."*) menu_extra_packages ;;
-            "12."*)
+            "12."*) menu_handheld ;;
+            "13."*)
                 if validate_config; then
                     show_summary
                     local prompt="THIS WILL ERASE ${CFG[disk]}. Continue?"
@@ -1061,6 +1094,8 @@ add_temp_repo() {
 install_base_system() {
     add_temp_repo
 
+    # linux-zen is always the pacstrap kernel.  In handheld mode it stays
+    # as a GRUB fallback; linux-bazzite-bin is built from AUR on first login.
     local pkgs="base base-devel linux-zen linux-zen-headers"
 
     grep -q "GenuineIntel" /proc/cpuinfo && pkgs+=" intel-ucode"
@@ -1130,6 +1165,22 @@ add_repos() {
     fi
 }
 
+## Map console keymap names to X11 layout + variant.
+## Sets _x11_layout and _x11_variant for the caller.
+_resolve_x11_keyboard() {
+    local keymap="$1"
+    _x11_variant=""
+    case "$keymap" in
+        uk)         _x11_layout="gb" ;;
+        pt-latin9)  _x11_layout="pt" ;;
+        br-abnt2)   _x11_layout="br" ;;
+        jp106)      _x11_layout="jp" ;;
+        dvorak)     _x11_layout="us"; _x11_variant="dvorak" ;;
+        colemak)    _x11_layout="us"; _x11_variant="colemak" ;;
+        *)          _x11_layout="$keymap" ;;
+    esac
+}
+
 configure_system() {
     arch-chroot "$ORBIT_MOUNT" ln -sf \
         "/usr/share/zoneinfo/${CFG[timezone]}" /etc/localtime
@@ -1140,6 +1191,38 @@ configure_system() {
     arch-chroot "$ORBIT_MOUNT" locale-gen
     echo "LANG=${CFG[locale]}"     > "$ORBIT_MOUNT/etc/locale.conf"
     echo "KEYMAP=${CFG[keyboard]}" > "$ORBIT_MOUNT/etc/vconsole.conf"
+
+    # ── Graphical session keyboard (X11 / XWayland + KDE Wayland) ────────
+    # vconsole.conf only affects TTY consoles; Plasma needs its own config.
+    _resolve_x11_keyboard "${CFG[keyboard]}"
+
+    mkdir -p "$ORBIT_MOUNT/etc/X11/xorg.conf.d"
+    cat > "$ORBIT_MOUNT/etc/X11/xorg.conf.d/00-keyboard.conf" << EOF
+Section "InputClass"
+    Identifier "system-keyboard"
+    MatchIsKeyboard "on"
+    Option "XkbLayout"  "$_x11_layout"
+    Option "XkbModel"   "pc104"
+    Option "XkbVariant" "$_x11_variant"
+EndSection
+EOF
+
+    # KDE Plasma Wayland reads keyboard layout from kxkbrc
+    local kde_dir="$ORBIT_MOUNT/home/${CFG[username]}/.config"
+    mkdir -p "$kde_dir"
+    cat > "$kde_dir/kxkbrc" << EOF
+[Layout]
+DisplayNames=
+LayoutList=$_x11_layout
+LayoutLoopCount=-1
+Model=pc104
+Options=
+ResetOldOptions=false
+Use=true
+VariantList=$_x11_variant
+EOF
+    arch-chroot "$ORBIT_MOUNT" chown -R "${CFG[username]}:${CFG[username]}" \
+        "/home/${CFG[username]}/.config" 2>/dev/null || true
 
     echo "${CFG[hostname]}" > "$ORBIT_MOUNT/etc/hostname"
     cat > "$ORBIT_MOUNT/etc/hosts" << EOF
@@ -1244,21 +1327,37 @@ create_user() {
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
+# AUR HELPER (standalone — called early so handheld kernel swap can use it)
+# ────────────────────────────────────────────────────────────────────────────────
+
+install_aur_helper() {
+    ui_info "Installing AUR helper (${CFG[aur_helper]})..."
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed "${CFG[aur_helper]}" \
+        || ui_warn "AUR helper install failed — install manually after reboot"
+    ui_ok "AUR helper: ${CFG[aur_helper]}"
+}
+
+# ────────────────────────────────────────────────────────────────────────────────
 # HARDWARE DRIVERS (chwd)
 # ────────────────────────────────────────────────────────────────────────────────
 
 install_drivers_chwd() {
-    ui_info "  Verifying kernel state (linux-zen only)..."
+    ui_info "  Verifying kernel state..."
 
+    # linux-zen is the active kernel for all installs.  In handheld mode the
+    # swap to linux-bazzite-bin happens on first Plasma login, not here.
     local stray=""
     stray=$(arch-chroot "$ORBIT_MOUNT" pacman -Qqs '^linux-cachyos' 2>/dev/null || true)
     if [[ -n "$stray" ]]; then
         ui_warn "Unexpected CachyOS kernels found — removing to avoid conflicts: $stray"
         arch-chroot "$ORBIT_MOUNT" pacman -Rdd --noconfirm $stray 2>/dev/null || true
     fi
-
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed linux-zen linux-zen-headers
-    ui_ok "Kernel: linux-zen + linux-zen-headers"
+    if [[ "${CFG[handheld]}" == "yes" ]]; then
+        ui_ok "Kernel: linux-zen (bazzite installs on first login, zen stays as fallback)"
+    else
+        ui_ok "Kernel: linux-zen + linux-zen-headers"
+    fi
 
     ui_info "  Installing chwd hardware detector..."
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed chwd \
@@ -1294,6 +1393,56 @@ install_drivers_chwd() {
 
     arch-chroot "$ORBIT_MOUNT" mkinitcpio -P
     ui_ok "Initramfs rebuilt"
+
+    # ── Handheld post-chwd services ─────────────────────────────────────────
+    setup_handheld_services
+}
+
+# ────────────────────────────────────────────────────────────────────────────────
+# HANDHELD KERNEL + SERVICES
+# ────────────────────────────────────────────────────────────────────────────────
+
+# Writes a marker file so the first-boot autostart script knows to build
+# linux-bazzite-bin from the AUR on first Plasma login.  The AUR build is
+# deferred because it's unreliable inside an install chroot.  linux-zen
+# stays installed as a GRUB fallback.  grub-hook auto-regenerates the GRUB
+# config when bazzite is installed, making it the default boot entry.
+# HHD + services are still installed during the main install (they work
+# fine on linux-zen until bazzite is ready).
+prepare_handheld_marker() {
+    [[ "${CFG[handheld]}" == "yes" ]] || return 0
+
+    local marker="$ORBIT_MOUNT/home/${CFG[username]}/.config/orbitos-handheld"
+    mkdir -p "$(dirname "$marker")"
+    echo "pending" > "$marker"
+    arch-chroot "$ORBIT_MOUNT" chown "${CFG[username]}:${CFG[username]}" \
+        "/home/${CFG[username]}/.config/orbitos-handheld" 2>/dev/null || true
+    ui_ok "Handheld kernel swap deferred to first Plasma login"
+}
+
+# Called at the end of install_drivers_chwd when handheld mode is active.
+# Installs hhd + hhd-ui from CachyOS/Chaotic repos, masks the conflicting
+# inputplumber and steamos-manager units, then enables the per-user hhd service.
+setup_handheld_services() {
+    [[ "${CFG[handheld]}" == "yes" ]] || return 0
+
+    ui_info "  Installing HHD and HHD-UI..."
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed hhd hhd-ui \
+        || {
+            ui_warn "HHD install failed — install manually after reboot: sudo pacman -S hhd hhd-ui"
+            return 0
+        }
+    ui_ok "hhd + hhd-ui installed"
+
+    ui_info "  Masking conflicting services (inputplumber, steamos-manager)..."
+    arch-chroot "$ORBIT_MOUNT" systemctl mask inputplumber    2>/dev/null || true
+    arch-chroot "$ORBIT_MOUNT" systemctl mask steamos-manager 2>/dev/null || true
+    ui_ok "inputplumber and steamos-manager masked"
+
+    ui_info "  Enabling hhd@${CFG[username]}..."
+    arch-chroot "$ORBIT_MOUNT" systemctl enable "hhd@${CFG[username]}" \
+        || ui_warn "Could not enable hhd — run after reboot: sudo systemctl enable hhd@\$(whoami)"
+    ui_ok "hhd@${CFG[username]} enabled"
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -1358,9 +1507,7 @@ install_kde_minimal() {
         filelight \
         sweeper \
         kwalletmanager \
-        kdialog \
-        cachyos-settings \
-        grub-hook
+        kdialog
 
     # ── Thumbnail / file previews ────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
@@ -1382,16 +1529,18 @@ install_kde_minimal() {
         bash-completion \
         inxi pciutils usbutils \
         pacman-contrib \
-        topgrade
+        topgrade \
+        cachyos-settings \
+        grub-hook
 
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
         ttf-hack-nerd ttf-jetbrains-mono-nerd \
         ttf-ubuntu-font-family adobe-source-sans-fonts \
         noto-fonts noto-fonts-emoji
 
-    ui_info "Installing AUR helper (${CFG[aur_helper]})..."
-    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed "${CFG[aur_helper]}" \
-        || ui_warn "AUR helper install failed — install manually after reboot"
+    # AUR helper is already installed (install_aur_helper ran earlier).
+    # --needed ensures this is a harmless no-op if already present.
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed "${CFG[aur_helper]}" 2>/dev/null || true
 
     case "${CFG[login_manager]}" in
         plasma-login)
@@ -1605,12 +1754,14 @@ TOOLINSTALL
 
     cat > "$autostart/orbitos-ps4-theme.sh" << 'FIRSTBOOT'
 #!/usr/bin/env bash
-# OrbitOS — PS4 Plasma Theme first-boot installer.
-# Runs once on first login, then removes itself.
+# OrbitOS — First-boot setup script.
+# Applies PS4 Plasma theme + handheld kernel swap (if enabled).
+# Runs once on first Plasma login, then removes itself.
 
 SELF_SCRIPT="$HOME/.config/autostart/orbitos-ps4-theme.sh"
 SELF_DESKTOP="$HOME/.config/autostart/orbitos-ps4-theme.desktop"
 REPO_DIR="$HOME/Playstation-4-Plasma"
+HANDHELD_MARKER="$HOME/.config/orbitos-handheld"
 
 log()  { printf "\033[1;36m[OrbitOS]\033[0m %s\n" "$1"; }
 ok()   { printf "\033[1;32m[  OK   ]\033[0m %s\n" "$1"; }
@@ -1629,9 +1780,10 @@ if [[ -z "$ORBITOS_RUNNING" ]]; then
 fi
 
 printf "\n\033[1;35m╔══════════════════════════════════════════════════════╗\033[0m\n"
-printf   "\033[1;35m║   OrbitOS — PS4 Plasma Theme · First-Boot Setup      ║\033[0m\n"
+printf   "\033[1;35m║   OrbitOS — First-Boot Setup                         ║\033[0m\n"
 printf   "\033[1;35m╚══════════════════════════════════════════════════════╝\033[0m\n\n"
 
+# ── PS4 Plasma Theme ────────────────────────────────────────────────────────
 if [[ -d "$REPO_DIR/.git" ]]; then
     log "Updating existing repository..."
     git -C "$REPO_DIR" pull --rebase &>/dev/null && ok "Repository updated" \
@@ -1656,8 +1808,45 @@ else
     warn "Re-run manually:  bash ~/Playstation-4-Plasma/install.sh"
 fi
 
+# ── Handheld Kernel Install (linux-bazzite-bin alongside linux-zen) ───────────
+# Only runs if the installer left the orbitos-handheld marker file.
+# Builds from AUR on the live system where it actually works reliably.
+# grub-hook auto-regenerates GRUB config and bazzite becomes the default
+# boot entry; linux-zen remains as a fallback in the GRUB menu.
+if [[ -f "$HANDHELD_MARKER" ]]; then
+    echo ""
+    printf "\033[1;35m── Handheld Mode: Bazzite Kernel ──\033[0m\n\n"
+
+    # Detect whichever AUR helper is installed
+    AUR_HELPER=""
+    if   command -v paru &>/dev/null; then AUR_HELPER="paru"
+    elif command -v yay  &>/dev/null; then AUR_HELPER="yay"
+    fi
+
+    if [[ -z "$AUR_HELPER" ]]; then
+        err "No AUR helper found (paru/yay) — cannot install linux-bazzite-bin."
+        warn "Install manually: paru -S linux-bazzite-bin"
+    else
+        log "Building linux-bazzite-bin via $AUR_HELPER (this may take a while)..."
+        if $AUR_HELPER -S --noconfirm --needed linux-bazzite-bin; then
+            ok "linux-bazzite-bin installed (linux-zen kept as fallback)"
+            rm -f "$HANDHELD_MARKER"
+            ok "Handheld kernel setup complete!"
+            echo ""
+            warn "⚠️  A reboot is required to boot into the Bazzite kernel."
+            warn "   Run: sudo reboot"
+            warn "   (Select linux-zen from GRUB if you ever need a fallback)"
+        else
+            err "linux-bazzite-bin build failed."
+            warn "Retry manually: $AUR_HELPER -S linux-bazzite-bin"
+        fi
+    fi
+    echo ""
+fi
+
 rm -f "$SELF_DESKTOP" "$SELF_SCRIPT"
-ok "First-boot setup complete. Closing in 10 seconds."
+ok "First-boot setup complete."
+[[ -f "$HANDHELD_MARKER" ]] || log "Closing in 10 seconds."
 sleep 10
 FIRSTBOOT
 
@@ -1666,8 +1855,8 @@ FIRSTBOOT
     cat > "$autostart/orbitos-ps4-theme.desktop" << DESKTOP
 [Desktop Entry]
 Type=Application
-Name=OrbitOS PS4 Theme Setup
-Comment=Applies the PS4 Plasma theme on first login (runs once, then removes itself)
+Name=OrbitOS First-Boot Setup
+Comment=Applies PS4 theme + handheld kernel swap on first login (runs once, then removes itself)
 Exec=bash /home/${CFG[username]}/.config/autostart/orbitos-ps4-theme.sh
 Hidden=false
 NoDisplay=false
@@ -1691,11 +1880,13 @@ perform_installation() {
     gum style --foreground 212 --bold --margin "1 2" "🚀 Starting OrbitOS installation..."
     echo ""
 
+    # ── Phase 1: Disk ────────────────────────────────────────────────────────
     ui_step "Partitioning disk..."     partition_disk
     [[ "${CFG[encrypt]}" == "yes" ]] && ui_step "Setting up encryption..." setup_encryption
     ui_step "Formatting partitions..." format_partitions
     ui_step "Mounting filesystems..."  mount_filesystems
 
+    # ── Phase 2: Base system + repos ─────────────────────────────────────────
     ui_info "Installing base system (this may take a while)..."
     install_base_system
     ui_ok "Base system installed"
@@ -1711,16 +1902,32 @@ perform_installation() {
         ui_ok "Packages upgraded to CachyOS optimized builds"
     fi
 
+    # ── Phase 3: User + AUR helper ──────────────────────────────────────────
+    ui_step "Creating user account..."  create_user
+    install_aur_helper
+
+    # ── Phase 4: Handheld marker ─────────────────────────────────────────────
+    # If handheld mode is enabled, write a marker file.  The bazzite kernel
+    # build is deferred to the first-boot autostart script where AUR builds
+    # work reliably.  grub-hook will auto-regenerate GRUB when bazzite is
+    # installed, making it default while linux-zen stays as a fallback.
+    # HHD + services are installed normally and work fine on linux-zen.
+    if [[ "${CFG[handheld]}" == "yes" ]]; then
+        prepare_handheld_marker
+    fi
+
+    # ── Phase 5: System config + bootloader ──────────────────────────────────
     ui_step "Configuring system..."    configure_system
     ui_step "Installing bootloader..." install_bootloader
-    ui_step "Creating user account..."  create_user
 
+    # ── Phase 6: Drivers + swap ──────────────────────────────────────────────
     ui_info "Auto-detecting hardware and installing drivers (chwd)..."
     install_drivers_chwd
     ui_ok "Hardware drivers configured"
 
     ui_step "Configuring swap..."      setup_swap_system
 
+    # ── Phase 7: Desktop + gaming + branding + extras ────────────────────────
     ui_info "Installing minimal KDE Plasma..."
     install_kde_minimal
     ui_ok "KDE Plasma installed"
@@ -1745,18 +1952,25 @@ perform_installation() {
     install_orbit_extras
     ui_ok "OrbitOS extras installed"
 
+    local handheld_note=""
+    [[ "${CFG[handheld]}" == "yes" ]] \
+        && handheld_note="  • HHD Handheld Daemon → active on boot (run hhd-ui for settings)
+  • Bazzite kernel → builds on first Plasma login (reboot after)
+  • linux-zen stays as a GRUB fallback"
+
     ui_header
     gum style --foreground 82 --bold --border double --border-foreground 82 \
-        --align center --width 64 --margin "1 2" --padding "1 2" \
+        --align center --width 68 --margin "1 2" --padding "1 2" \
         "✨ OrbitOS Installation Complete! ✨" \
         "" \
         "Remove installation media and reboot:" \
         "  sudo reboot" \
         "" \
-        "On first login:" \
+        "On first login (log into Plasma desktop):" \
         "  • Gaming (Steam, Lutris, Heroic) → ready to go" \
         "  • CyberXero Toolkit → run: xero-toolkit" \
-        "  • PS4 Plasma Theme  → applies automatically"
+        "  • PS4 Plasma Theme  → applies automatically" \
+        "$handheld_note"
     echo ""
 }
 
