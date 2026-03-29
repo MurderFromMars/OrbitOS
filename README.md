@@ -157,7 +157,7 @@ mangohud %command%        # HUD overlay
 
 [Chaotic-AUR](https://aur.chaotic.cx) — prebuilt AUR packages
 
-[XeroLinux](https://xerolinux.xyz) — For motivating me to make something better 
+DarkXero  — For motivating me to make something better 
 
 [charmbracelet/gum](https://github.com/charmbracelet/gum) — TUI components
 
