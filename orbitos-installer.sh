@@ -1,39 +1,50 @@
+
 #!/bin/bash
 #
-# ╔═══════════════════════════════════════════════════════════════════════════════╗
-# ║                                                                               ║
-# ║                      ✨ OrbitOS Arch Installer - KDE ✨                       ║
-# ║                                                                               ║
-# ║                           Self-contained installer.                           ║
-# ║                                                                               ║
-# ╚═══════════════════════════════════════════════════════════════════════════════╝
+#  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+#  ██ OrbitOS Arch Installer                                     ██
+#  ██ Arch Linux + KDE Plasma + CachyOS + PS4 Theme              ██
+#  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
-# OrbitOS: Minimal Arch Linux + KDE Plasma + CachyOS Gaming + CyberXero Toolkit + PS4 Theme
+#  Self-contained single-file installer.
 #
 
 set -Eeuo pipefail
 
-# ────────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 # GLOBALS
-# ────────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 
 readonly ORBIT_VERSION="1.0"
-readonly ORBIT_NAME="OrbitOS KDE Installer"
+readonly ORBIT_NAME="OrbitOS"
 readonly ORBIT_MOUNT="/mnt"
 
 # Optional: set this to a direct URL to your logo PNG (e.g. raw GitHub link).
 # If left empty the installer will generate a simple SVG placeholder instead.
 ORBIT_LOGO_URL="https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/ps4.png"
 
-# Terminal colours — only used as fallback when gum is absent
-_c_red=$'\033[0;31m'
-_c_grn=$'\033[0;32m'
-_c_yel=$'\033[1;33m'
-_c_cyn=$'\033[0;36m'
-_c_mag=$'\033[0;35m'
-_c_rst=$'\033[0m'
+# ── Neon blue terminal palette ───────────────────────────────────────────────
+# Used as ANSI fallback when gum is absent.
+_nb=$'\033[1;34m'      # neon blue (bold blue)
+_nc=$'\033[1;36m'      # neon cyan
+_nw=$'\033[1;37m'      # bright white
+_ng=$'\033[1;32m'      # green (success)
+_ny=$'\033[1;33m'      # yellow (warning)
+_nr=$'\033[1;31m'      # red (error)
+_nd=$'\033[0;90m'      # dim gray
+_n0=$'\033[0m'         # reset
 
-# Installation state — all values live here
+# ── gum color constants (256-color) ──────────────────────────────────────────
+readonly GUM_PRIMARY=33       # royal blue
+readonly GUM_ACCENT=51        # electric cyan
+readonly GUM_BRIGHT=39        # dodger blue
+readonly GUM_DIM=105          # muted slate blue
+readonly GUM_SUCCESS=48       # spring green
+readonly GUM_WARN=214         # amber
+readonly GUM_ERR=196          # red
+readonly GUM_MUTED=245        # gray
+
+# ── State ────────────────────────────────────────────────────────────────────
 declare -A CFG
 CFG[locale]="en_US.UTF-8"
 CFG[keyboard]="us"
@@ -61,89 +72,91 @@ CFG[login_manager]="sddm"
 CFG[cachyos_optimized]="no"
 CFG[handheld]="no"
 
-# Packages added by the user during the optional-packages step
 ADDON_PKGS=""
 
-# ────────────────────────────────────────────────────────────────────────────────
-# DISPLAY LAYER
-# ────────────────────────────────────────────────────────────────────────────────
-# All output goes through these wrappers so the UI stays consistent whether
-# gum is available or we fall back to plain echo.
+# ══════════════════════════════════════════════════════════════════════════════
+# RENDER ENGINE
+# ══════════════════════════════════════════════════════════════════════════════
 
-_gum_present() { command -v gum &>/dev/null; }
+_has_gum() { command -v gum &>/dev/null; }
 
-# Print the top-level branded header
+# ── Brand bar ────────────────────────────────────────────────────────────────
 ui_header() {
     clear
-    if _gum_present; then
+    if _has_gum; then
+        printf "\n"
         gum style \
-            --foreground 212 --border-foreground 212 --border double \
-            --align center --width 70 --margin "1 2" --padding "1 2" \
-            "✨ $ORBIT_NAME v$ORBIT_VERSION ✨" \
+            --foreground $GUM_ACCENT --border-foreground $GUM_PRIMARY \
+            --border rounded --align center --width 64 \
+            --margin "0 4" --padding "1 3" \
+            "$(gum style --foreground $GUM_ACCENT --bold '░▒▓  O R B I T O S  ▓▒░')" \
             "" \
-            "Arch Linux + KDE Plasma + Gaming + PS4 Theme + CyberXero Toolkit"
+            "$(gum style --foreground $GUM_DIM "v${ORBIT_VERSION}  //  Arch + Plasma + CachyOS")"
+        printf "\n"
     else
-        printf "\n${_c_mag}  ✨ %s v%s ✨${_c_rst}\n\n" "$ORBIT_NAME" "$ORBIT_VERSION"
+        printf "\n${_nb}  ░▒▓  O R B I T O S  v%s  ▓▒░${_n0}\n\n" "$ORBIT_VERSION"
     fi
 }
 
-# Section title within a step
+# ── Section divider ──────────────────────────────────────────────────────────
 ui_section() {
-    if _gum_present; then
-        gum style --foreground 212 --bold --margin "1 2" "$1"
+    if _has_gum; then
+        gum style --foreground $GUM_BRIGHT --bold --margin "1 4" \
+            "▓▒░ $1"
     else
-        printf "\n${_c_mag}── %s${_c_rst}\n" "$1"
+        printf "\n${_nc}▓▒░ %s${_n0}\n" "$1"
     fi
 }
 
-# Neutral informational line
+# ── Status lines ─────────────────────────────────────────────────────────────
 ui_info() {
-    if _gum_present; then
-        gum style --foreground 81 --margin "0 2" "$1"
+    if _has_gum; then
+        gum style --foreground $GUM_DIM --margin "0 6" ":: $1"
     else
-        printf "  ${_c_cyn}→${_c_rst} %s\n" "$1"
+        printf "  ${_nd}::${_n0} %s\n" "$1"
     fi
 }
 
-# Confirmation that a step succeeded
 ui_ok() {
-    if _gum_present; then
-        gum style --foreground 82 "  ✓ $1"
+    if _has_gum; then
+        gum style --foreground $GUM_SUCCESS --margin "0 6" ">> $1"
     else
-        printf "  ${_c_grn}✓${_c_rst} %s\n" "$1"
+        printf "  ${_ng}>>${_n0} %s\n" "$1"
     fi
 }
 
-# Non-fatal problem
 ui_warn() {
-    if _gum_present; then
-        gum style --foreground 214 "  ⚠ $1"
+    if _has_gum; then
+        gum style --foreground $GUM_WARN --margin "0 6" "!! $1"
     else
-        printf "  ${_c_yel}⚠${_c_rst} %s\n" "$1"
+        printf "  ${_ny}!!${_n0} %s\n" "$1"
     fi
 }
 
-# Something went wrong
 ui_err() {
-    if _gum_present; then
-        gum style --foreground 196 "  ✗ $1"
+    if _has_gum; then
+        gum style --foreground $GUM_ERR --margin "0 6" "XX $1"
     else
-        printf "  ${_c_red}✗${_c_rst} %s\n" "$1"
+        printf "  ${_nr}XX${_n0} %s\n" "$1"
     fi
 }
 
-# Yes/No prompt — returns 0 for yes, 1 for no
+# ── Confirm prompt ───────────────────────────────────────────────────────────
 ui_confirm() {
-    if _gum_present; then
-        gum confirm --affirmative "Yes" --negative "No" "$1"
+    if _has_gum; then
+        gum confirm \
+            --prompt.foreground $GUM_ACCENT \
+            --selected.background $GUM_PRIMARY \
+            --unselected.foreground $GUM_MUTED \
+            --affirmative "Yes" --negative "No" "$1"
     else
         local ans
-        read -rp "  ${_c_cyn}$1 [y/N]${_c_rst} " ans
+        read -rp "  ${_nc}$1 [y/N]${_n0} " ans
         [[ "${ans,,}" == "y" ]]
     fi
 }
 
-# Run a labelled step, print success on exit
+# ── Run labelled step ────────────────────────────────────────────────────────
 ui_step() {
     local label="$1"; shift
     ui_info "$label"
@@ -151,20 +164,81 @@ ui_step() {
     ui_ok "${label%...}"
 }
 
-# ────────────────────────────────────────────────────────────────────────────────
+# ── Styled gum choose wrapper ───────────────────────────────────────────────
+_orbit_choose() {
+    local header="$1"; shift
+    local height="${1:-10}"; shift
+    printf '%s\n' "$@" \
+        | gum choose \
+            --header "$header" \
+            --header.foreground $GUM_ACCENT \
+            --cursor.foreground $GUM_BRIGHT \
+            --selected.foreground $GUM_SUCCESS \
+            --height "$height"
+}
+
+# ── Styled gum filter wrapper ───────────────────────────────────────────────
+_orbit_filter() {
+    local placeholder="$1"; shift
+    local height="${1:-12}"; shift
+    if [[ $# -gt 0 ]]; then
+        printf '%s\n' "$@"
+    else
+        cat
+    fi \
+        | gum filter \
+            --placeholder "$placeholder" \
+            --prompt.foreground $GUM_ACCENT \
+            --indicator.foreground $GUM_BRIGHT \
+            --match.foreground $GUM_SUCCESS \
+            --height "$height"
+}
+
+# ── Styled gum input wrapper ────────────────────────────────────────────────
+_orbit_input() {
+    local placeholder="$1"
+    local width="${2:-40}"
+    local header="${3:-}"
+    local args=(
+        --placeholder "$placeholder"
+        --width "$width"
+        --prompt.foreground $GUM_ACCENT
+        --cursor.foreground $GUM_BRIGHT
+    )
+    [[ -n "$header" ]] && args+=(--header "$header" --header.foreground $GUM_ACCENT)
+    gum input "${args[@]}"
+}
+
+# ── Styled gum input --password wrapper ──────────────────────────────────────
+_orbit_password() {
+    local placeholder="$1"
+    local width="${2:-50}"
+    gum input --password \
+        --placeholder "$placeholder" \
+        --width "$width" \
+        --prompt.foreground $GUM_ACCENT \
+        --cursor.foreground $GUM_BRIGHT
+}
+
+# ── Description block ────────────────────────────────────────────────────────
+_orbit_desc() {
+    gum style --foreground $GUM_MUTED --margin "0 6" "$@"
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ERROR HANDLING
-# ────────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 
 _trap_err() {
     local code=$? line=${1:-?} command=${2:-?}
-    if _gum_present; then
-        gum style --foreground 196 --bold --margin "1 2" \
-            "❌ Installer crashed (exit $code) at line $line" \
+    if _has_gum; then
+        gum style --foreground $GUM_ERR --bold --margin "1 4" \
+            "XX Installer crashed (exit $code) at line $line" \
             "   Command: $command"
         echo ""
         gum input --placeholder "Press Enter to exit..."
     else
-        printf "\n${_c_red}Crash at line %s (exit %s): %s${_c_rst}\n" \
+        printf "\n${_nr}Crash at line %s (exit %s): %s${_n0}\n" \
             "$line" "$code" "$command"
     fi
     exit "$code"
@@ -172,13 +246,13 @@ _trap_err() {
 
 trap '_trap_err "$LINENO" "$BASH_COMMAND"' ERR
 
-# ────────────────────────────────────────────────────────────────────────────────
-# PREFLIGHT CHECKS
-# ────────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# PREFLIGHT
+# ══════════════════════════════════════════════════════════════════════════════
 
 require_root() {
     [[ ${EUID:-1} -eq 0 ]] && return
-    printf "${_c_red}Error: must be run as root.${_c_rst}\n"
+    printf "${_nr}Error: must be run as root.${_n0}\n"
     printf "Run: sudo bash %s\n" "$0"
     exit 1
 }
@@ -189,7 +263,6 @@ detect_boot_mode() {
         || CFG[uefi]="no"
 }
 
-# Cached so repeated calls don't re-ping
 _net_checked="no"
 require_network() {
     [[ "$_net_checked" == "yes" ]] && return 0
@@ -197,38 +270,37 @@ require_network() {
         _net_checked="yes"
         return 0
     fi
-    printf "${_c_red}Error: no internet connection detected.${_c_rst}\n"
+    printf "${_nr}Error: no internet connection detected.${_n0}\n"
     exit 1
 }
 
 require_arch_iso() {
     [[ -f /etc/arch-release ]] && return
-    printf "${_c_red}Error: must be run from the Arch Linux live ISO.${_c_rst}\n"
+    printf "${_nr}Error: must be run from the Arch Linux live ISO.${_n0}\n"
     exit 1
 }
 
 bootstrap_deps() {
     local missing=()
-    command -v gum        &>/dev/null || missing+=(gum)
-    command -v parted     &>/dev/null || missing+=(parted)
+    command -v gum         &>/dev/null || missing+=(gum)
+    command -v parted      &>/dev/null || missing+=(parted)
     command -v arch-chroot &>/dev/null || missing+=(arch-install-scripts)
-    command -v sgdisk     &>/dev/null || missing+=(gptfdisk)
-    command -v mkfs.btrfs &>/dev/null || missing+=(btrfs-progs)
-    command -v mkfs.fat   &>/dev/null || missing+=(dosfstools)
-    command -v mkfs.ext4  &>/dev/null || missing+=(e2fsprogs)
-    command -v cryptsetup &>/dev/null || missing+=(cryptsetup)
+    command -v sgdisk      &>/dev/null || missing+=(gptfdisk)
+    command -v mkfs.btrfs  &>/dev/null || missing+=(btrfs-progs)
+    command -v mkfs.fat    &>/dev/null || missing+=(dosfstools)
+    command -v mkfs.ext4   &>/dev/null || missing+=(e2fsprogs)
+    command -v cryptsetup  &>/dev/null || missing+=(cryptsetup)
 
     if [[ ${#missing[@]} -gt 0 ]]; then
-        printf "${_c_cyn}Fetching missing tools: %s${_c_rst}\n" "${missing[*]}"
-        # Remove stale lock if a previous run was interrupted
+        printf "${_nc}:: Fetching dependencies: %s${_n0}\n" "${missing[*]}"
         rm -f /var/lib/pacman/db.lck
         pacman -Sy --noconfirm --noprogressbar "${missing[@]}" 2>&1
     fi
 }
 
-# ────────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 # PACMAN HELPERS
-# ────────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 
 # Ensure ParallelDownloads is set to the configured value
 pacman_set_parallel() {
@@ -253,83 +325,110 @@ pacman_set_opts() {
     done
 }
 
-# ────────────────────────────────────────────────────────────────────────────────
-# CONFIGURATION MENUS
-# ────────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# CONFIGURATION PANELS
+# ══════════════════════════════════════════════════════════════════════════════
 
-menu_locales() {
+# ─────────────────────────── 1. IDENTITY ─────────────────────────────────────
+
+panel_identity() {
     ui_header
-    ui_section "🗺️  System Locales"
-    echo ""
-    ui_info "Choose your system locale"
+    ui_section "Identity"
     echo ""
 
-    local locales=(
-        "en_US.UTF-8" "en_GB.UTF-8" "de_DE.UTF-8" "fr_FR.UTF-8"
-        "es_ES.UTF-8" "it_IT.UTF-8" "pt_BR.UTF-8" "pt_PT.UTF-8"
-        "ru_RU.UTF-8" "ja_JP.UTF-8" "ko_KR.UTF-8" "zh_CN.UTF-8"
-        "pl_PL.UTF-8" "nl_NL.UTF-8" "tr_TR.UTF-8" "sv_SE.UTF-8"
-        "da_DK.UTF-8" "fi_FI.UTF-8" "nb_NO.UTF-8" "cs_CZ.UTF-8"
-    )
-
-    local picked=""
-    picked=$(printf '%s\n' "${locales[@]}" \
-        | gum filter --placeholder "Search locale..." --height 12) || true
-    [[ -n "$picked" ]] && CFG[locale]="$picked" && ui_ok "Locale: $picked"
-
+    # Hostname
+    _orbit_desc "Machine name (lowercase, a-z / 0-9 / dash)"
     echo ""
-    ui_info "Choose keyboard layout"
-    echo ""
-
-    local layouts=(
-        "us" "uk" "de" "fr" "es" "it" "pt-latin9" "br-abnt2"
-        "ru" "pl" "cz" "hu" "se" "no" "dk" "fi" "nl" "jp106"
-        "dvorak" "colemak"
-    )
-
-    local kb=""
-    kb=$(printf '%s\n' "${layouts[@]}" \
-        | gum choose --height 12 --header "Keyboard layout:") || true
-    if [[ -n "$kb" ]]; then
-        CFG[keyboard]="$kb"
-        loadkeys "$kb" 2>/dev/null || true
-        ui_ok "Keyboard: $kb"
+    local h=""
+    h=$(_orbit_input "orbitos" 40 "Hostname") || true
+    if [[ "$h" =~ ^[a-z][a-z0-9-]*$ && ${#h} -le 63 ]]; then
+        CFG[hostname]="$h"
+    else
+        ui_warn "Invalid hostname, keeping: ${CFG[hostname]}"
     fi
-    sleep 0.5
+    ui_ok "Hostname: ${CFG[hostname]}"
+
+    # Username
+    echo ""
+    _orbit_desc "Login username (lowercase only)"
+    echo ""
+    local u=""
+    u=$(_orbit_input "username" 40 "Username") || true
+    if [[ ! "$u" =~ ^[a-z_][a-z0-9_-]*$ || ${#u} -gt 32 || -z "$u" ]]; then
+        ui_warn "Invalid username, falling back to 'user'"
+        u="user"
+    fi
+    CFG[username]="$u"
+    ui_ok "Username: ${CFG[username]}"
+
+    # User password
+    echo ""
+    local p1="" p2=""
+    p1=$(_orbit_password "Password for $u") || true
+    p2=$(_orbit_password "Confirm password") || true
+    if [[ "$p1" == "$p2" && -n "$p1" ]]; then
+        CFG[user_password]="$p1"
+        ui_ok "User password set"
+    else
+        ui_err "Passwords don't match, try again."
+        sleep 1; panel_identity; return
+    fi
+
+    # Root password
+    echo ""
+    ui_section "Root Password"
+    echo ""
+    if ui_confirm "Use the same password for root?"; then
+        CFG[root_password]="${CFG[user_password]}"
+        ui_ok "Root: same as user"
+    else
+        local r1="" r2=""
+        r1=$(_orbit_password "Root password") || true
+        r2=$(_orbit_password "Confirm root password") || true
+        if [[ "$r1" == "$r2" && -n "$r1" ]]; then
+            CFG[root_password]="$r1"
+            ui_ok "Root password set"
+        else
+            ui_warn "Mismatch, using user password for root."
+            CFG[root_password]="${CFG[user_password]}"
+        fi
+    fi
+    sleep 0.4
 }
 
-menu_partitioning() {
+# ─────────────────────────── 2. STORAGE ──────────────────────────────────────
+
+panel_storage() {
     ui_header
-    ui_section "💾 Disk Configuration"
+    ui_section "Storage"
     echo ""
 
-    local choice=""
-    choice=$(printf '%s\n' \
-        "Auto    │ Wipe entire disk (Recommended)" \
-        "Manual  │ Choose existing partitions (dual-boot)" \
-        | gum choose --height 4 --header "Partitioning mode:") || true
+    local mode=""
+    mode=$(_orbit_choose "Partitioning mode:" 4 \
+        "Auto    // Wipe entire disk" \
+        "Manual  // Choose existing partitions") || true
 
-    if [[ "$choice" == "Manual"* ]]; then
+    if [[ "$mode" == "Manual"* ]]; then
         CFG[partition_mode]="manual"
-        _manual_partition
+        _storage_manual
     else
         CFG[partition_mode]="auto"
-        _auto_partition
+        _storage_auto
     fi
 }
 
-_manual_partition() {
+_storage_manual() {
     ui_header
-    ui_section "💾 Manual Partitioning"
+    ui_section "Manual Partitioning"
     echo ""
-    gum style --foreground 226 --bold --margin "0 2" \
-        "ℹ️  Assigned partitions will be formatted. Others untouched."
+    gum style --foreground $GUM_WARN --bold --margin "0 6" \
+        "Assigned partitions will be formatted. Others untouched."
     echo ""
-    gum style --foreground 245 --margin "0 2" \
+    gum style --foreground $GUM_MUTED --margin "0 6" \
         "$(lsblk -o NAME,SIZE,FSTYPE,LABEL,TYPE,MOUNTPOINT 2>/dev/null)"
     echo ""
 
-    if ui_confirm "Launch cfdisk to create/modify partitions first?"; then
+    if ui_confirm "Launch cfdisk first?"; then
         local raw_disks=()
         while IFS= read -r ln; do [[ -n "$ln" ]] && raw_disks+=("$ln"); done \
             < <(lsblk -dpno NAME,SIZE,MODEL 2>/dev/null \
@@ -337,8 +436,7 @@ _manual_partition() {
                 | sed 's/  */ /g')
         if [[ ${#raw_disks[@]} -gt 0 ]]; then
             local d=""
-            d=$(printf '%s\n' "${raw_disks[@]}" \
-                | gum choose --height 10 --header "Disk to edit with cfdisk:") || true
+            d=$(_orbit_choose "Disk to edit:" 10 "${raw_disks[@]}") || true
             if [[ -n "$d" ]]; then
                 local dev; dev=$(awk '{print $1}' <<< "$d")
                 cfdisk "$dev" || true
@@ -362,7 +460,7 @@ _manual_partition() {
     # Boot / EFI
     echo ""
     [[ "${CFG[uefi]}" == "yes" ]] \
-        && ui_info "Select EFI System Partition (ESP)" \
+        && ui_info "Select EFI System Partition" \
         || ui_info "Select boot partition (or skip)"
     echo ""
 
@@ -370,8 +468,7 @@ _manual_partition() {
     for p in "${parts[@]}"; do boot_list+=("$p"); done
 
     local boot_pick=""
-    boot_pick=$(printf '%s\n' "${boot_list[@]}" \
-        | gum choose --height 14 --header "Boot/EFI partition:") || true
+    boot_pick=$(_orbit_choose "Boot/EFI partition:" 14 "${boot_list[@]}") || true
 
     if [[ "$boot_pick" == "-- Skip --" ]]; then
         CFG[boot_part]=""; CFG[reuse_efi]="no"
@@ -381,10 +478,9 @@ _manual_partition() {
         if [[ "${CFG[uefi]}" == "yes" ]]; then
             echo ""
             local efi_action=""
-            efi_action=$(printf '%s\n' \
-                "Format  │ Wipe and format as FAT32" \
-                "Reuse   │ Mount without formatting (dual-boot)" \
-                | gum choose --height 4 --header "EFI partition action:") || true
+            efi_action=$(_orbit_choose "EFI partition action:" 4 \
+                "Format  // Wipe and format as FAT32" \
+                "Reuse   // Mount without formatting") || true
             [[ "$efi_action" == "Reuse"* ]] \
                 && CFG[reuse_efi]="yes" \
                 || CFG[reuse_efi]="no"
@@ -396,8 +492,7 @@ _manual_partition() {
     ui_info "Select root partition"
     echo ""
     local root_pick=""
-    root_pick=$(printf '%s\n' "${parts[@]}" \
-        | gum choose --height 14 --header "Root (/) partition:") || true
+    root_pick=$(_orbit_choose "Root (/) partition:" 14 "${parts[@]}") || true
     [[ -z "$root_pick" ]] && { ui_err "No root partition selected."; return; }
     CFG[root_part]=$(awk '{print $1}' <<< "$root_pick")
     ui_ok "Root: ${CFG[root_part]}"
@@ -407,17 +502,18 @@ _manual_partition() {
     CFG[disk]="${pk:+/dev/$pk}"
     [[ -z "${CFG[disk]}" ]] && CFG[disk]="${CFG[root_part]}"
 
-    _pick_filesystem
-    _pick_encryption
-    sleep 0.5
+    _pick_fs
+    _pick_luks
+
+    sleep 0.4
 }
 
-_auto_partition() {
+_storage_auto() {
     ui_header
-    ui_section "💾 Disk Selection"
+    ui_section "Disk Selection"
     echo ""
-    gum style --foreground 196 --bold --margin "0 2" \
-        "⚠️  WARNING: the selected disk will be completely erased!"
+    gum style --foreground $GUM_ERR --bold --margin "0 6" \
+        "WARNING: the selected disk will be completely erased."
     echo ""
 
     local raw_disks=()
@@ -429,75 +525,99 @@ _auto_partition() {
     [[ ${#raw_disks[@]} -eq 0 ]] && { ui_err "No suitable disks found."; exit 1; }
 
     local d=""
-    d=$(printf '%s\n' "${raw_disks[@]}" \
-        | gum choose --height 10 --header "Target disk:") || true
+    d=$(_orbit_choose "Target disk:" 10 "${raw_disks[@]}") || true
     if [[ -n "$d" ]]; then
         CFG[disk]=$(awk '{print $1}' <<< "$d")
         ui_ok "Disk: ${CFG[disk]}"
         echo ""
-        gum style --foreground 245 --margin "0 2" \
+        gum style --foreground $GUM_MUTED --margin "0 6" \
             "$(lsblk "${CFG[disk]}" 2>/dev/null)"
     fi
 
-    _pick_filesystem
+    _pick_fs
 
+    # Encryption
     echo ""
-    ui_info "Disk Encryption (LUKS2)"
+    ui_section "Disk Encryption"
     echo ""
-    if ui_confirm "Enable full disk encryption?"; then
+    if ui_confirm "Enable full disk encryption (LUKS2)?"; then
         CFG[encrypt]="yes"
         local p1="" p2=""
-        p1=$(gum input --password --placeholder "Encryption password" --width 50) || true
-        p2=$(gum input --password --placeholder "Confirm password"    --width 50) || true
+        p1=$(_orbit_password "Encryption password") || true
+        p2=$(_orbit_password "Confirm password") || true
         if [[ "$p1" == "$p2" && -n "$p1" ]]; then
             CFG[encrypt_password]="$p1"
             echo ""
             local scope=""
-            scope=$(printf '%s\n' \
-                "root      │ Encrypt root only (faster boot)" \
-                "root+boot │ Encrypt root & boot (more secure)" \
-                | gum choose --height 4 --header "Scope:") || true
+            scope=$(_orbit_choose "Encryption scope:" 4 \
+                "root      // Encrypt root only (faster boot)" \
+                "root+boot // Encrypt root and boot (more secure)") || true
             [[ "$scope" == "root+boot"* ]] \
                 && CFG[encrypt_boot]="yes" \
                 || CFG[encrypt_boot]="no"
             ui_ok "Encryption enabled"
         else
-            ui_err "Passwords don't match — encryption disabled."
+            ui_err "Passwords don't match, encryption disabled."
             CFG[encrypt]="no"; CFG[encrypt_boot]="no"; CFG[encrypt_password]=""
         fi
     else
         CFG[encrypt]="no"; CFG[encrypt_boot]="no"; CFG[encrypt_password]=""
     fi
-    sleep 0.5
+
+    # Swap (bundled into storage panel)
+    echo ""
+    ui_section "Swap"
+    echo ""
+    local sw=""
+    sw=$(_orbit_choose "Swap type:" 5 \
+        "zram     // Compressed RAM (recommended)" \
+        "file     // Traditional swap file" \
+        "none     // No swap") || true
+    if [[ -n "$sw" ]]; then
+        CFG[swap]=$(awk '{print $1}' <<< "$sw")
+        ui_ok "Swap: ${CFG[swap]}"
+        if [[ "${CFG[swap]}" == "zram" ]]; then
+            echo ""
+            local algo=""
+            algo=$(_orbit_choose "Compression algorithm:" 5 \
+                "zstd     // Best ratio (recommended)" \
+                "lz4      // Fastest" \
+                "lzo      // Balanced") || true
+            [[ -n "$algo" ]] \
+                && CFG[swap_algo]=$(awk '{print $1}' <<< "$algo") \
+                && ui_ok "Algorithm: ${CFG[swap_algo]}"
+        fi
+    fi
+
+    sleep 0.4
 }
 
-_pick_filesystem() {
+_pick_fs() {
     echo ""
-    ui_info "Select filesystem"
+    ui_section "Filesystem"
     echo ""
     local fs=""
-    fs=$(printf '%s\n' \
-        "btrfs    │ CoW with snapshots (Recommended)" \
-        "ext4     │ Traditional, reliable" \
-        "xfs      │ High-performance" \
-        | gum choose --height 5 --header "Filesystem:") || true
+    fs=$(_orbit_choose "Filesystem:" 5 \
+        "btrfs    // CoW with snapshots (recommended)" \
+        "ext4     // Traditional, reliable" \
+        "xfs      // High performance") || true
     if [[ -n "$fs" ]]; then
         CFG[filesystem]=$(awk '{print $1}' <<< "$fs")
         ui_ok "Filesystem: ${CFG[filesystem]}"
     fi
 }
 
-_pick_encryption() {
+_pick_luks() {
     echo ""
-    if ui_confirm "Enable LUKS2 encryption on root partition?"; then
+    if ui_confirm "Enable LUKS2 encryption on root?"; then
         CFG[encrypt]="yes"; CFG[encrypt_boot]="no"
         local p1="" p2=""
-        p1=$(gum input --password --placeholder "Encryption password" --width 50) || true
-        p2=$(gum input --password --placeholder "Confirm password"    --width 50) || true
+        p1=$(_orbit_password "Encryption password") || true
+        p2=$(_orbit_password "Confirm password") || true
         if [[ "$p1" == "$p2" && -n "$p1" ]]; then
             CFG[encrypt_password]="$p1"; ui_ok "Encryption enabled"
         else
-            ui_err "Passwords don't match — encryption disabled."
+            ui_err "Passwords don't match, encryption disabled."
             CFG[encrypt]="no"; CFG[encrypt_password]=""
         fi
     else
@@ -505,105 +625,51 @@ _pick_encryption() {
     fi
 }
 
-menu_swap() {
+# ─────────────────────────── 3. REGION ───────────────────────────────────────
+
+panel_region() {
     ui_header
-    ui_section "🔄 Swap Configuration"
-    echo ""
-    local s=""
-    s=$(printf '%s\n' \
-        "zram     │ Compressed RAM swap (Recommended)" \
-        "file     │ Traditional swap file on disk" \
-        "none     │ No swap" \
-        | gum choose --height 5 --header "Swap type:") || true
-    if [[ -n "$s" ]]; then
-        CFG[swap]=$(awk '{print $1}' <<< "$s")
-        ui_ok "Swap: ${CFG[swap]}"
-        if [[ "${CFG[swap]}" == "zram" ]]; then
-            echo ""
-            local algo=""
-            algo=$(printf '%s\n' \
-                "zstd     │ Best compression (Recommended)" \
-                "lz4      │ Fastest" \
-                "lzo      │ Balanced" \
-                | gum choose --height 5 --header "zram algorithm:") || true
-            [[ -n "$algo" ]] \
-                && CFG[swap_algo]=$(awk '{print $1}' <<< "$algo") \
-                && ui_ok "Algorithm: ${CFG[swap_algo]}"
-        fi
-    fi
-    sleep 0.5
-}
-
-menu_hostname() {
-    ui_header
-    ui_section "💻 Hostname"
-    echo ""
-    local h=""
-    h=$(gum input \
-        --placeholder "orbitos" \
-        --value "${CFG[hostname]}" \
-        --width 40 \
-        --header "Hostname:") || true
-    if [[ "$h" =~ ^[a-z][a-z0-9-]*$ && ${#h} -le 63 ]]; then
-        CFG[hostname]="$h"
-    else
-        ui_warn "Invalid hostname — keeping default: orbitos"
-        CFG[hostname]="orbitos"
-    fi
-    ui_ok "Hostname: ${CFG[hostname]}"
-    sleep 0.5
-}
-
-menu_credentials() {
-    ui_header
-    ui_section "👤 User Account"
+    ui_section "Region"
     echo ""
 
-    local u=""
-    u=$(gum input --placeholder "username" --width 40 \
-        --header "Username (lowercase letters only):") || true
-    if [[ ! "$u" =~ ^[a-z_][a-z0-9_-]*$ || ${#u} -gt 32 || -z "$u" ]]; then
-        ui_warn "Invalid username — falling back to 'user'"
-        u="user"
-    fi
-    CFG[username]="$u"
-    ui_ok "Username: ${CFG[username]}"
+    # Locale
+    _orbit_desc "System locale for language and number formatting"
     echo ""
 
-    local p1="" p2=""
-    p1=$(gum input --password --placeholder "Password for $u" --width 50) || true
-    p2=$(gum input --password --placeholder "Confirm password"  --width 50) || true
-    if [[ "$p1" == "$p2" && -n "$p1" ]]; then
-        CFG[user_password]="$p1"
-        ui_ok "User password set"
-    else
-        ui_err "Passwords don't match — please try again."
-        sleep 1; menu_credentials; return
+    local locales=(
+        "en_US.UTF-8" "en_GB.UTF-8" "de_DE.UTF-8" "fr_FR.UTF-8"
+        "es_ES.UTF-8" "it_IT.UTF-8" "pt_BR.UTF-8" "pt_PT.UTF-8"
+        "ru_RU.UTF-8" "ja_JP.UTF-8" "ko_KR.UTF-8" "zh_CN.UTF-8"
+        "pl_PL.UTF-8" "nl_NL.UTF-8" "tr_TR.UTF-8" "sv_SE.UTF-8"
+        "da_DK.UTF-8" "fi_FI.UTF-8" "nb_NO.UTF-8" "cs_CZ.UTF-8"
+    )
+
+    local picked=""
+    picked=$(_orbit_filter "Search locale..." 12 "${locales[@]}") || true
+    [[ -n "$picked" ]] && CFG[locale]="$picked" && ui_ok "Locale: $picked"
+
+    # Keyboard
+    echo ""
+    _orbit_desc "Console keyboard layout"
+    echo ""
+
+    local layouts=(
+        "us" "uk" "de" "fr" "es" "it" "pt-latin9" "br-abnt2"
+        "ru" "pl" "cz" "hu" "se" "no" "dk" "fi" "nl" "jp106"
+        "dvorak" "colemak"
+    )
+
+    local kb=""
+    kb=$(_orbit_choose "Keyboard:" 12 "${layouts[@]}") || true
+    if [[ -n "$kb" ]]; then
+        CFG[keyboard]="$kb"
+        loadkeys "$kb" 2>/dev/null || true
+        ui_ok "Keyboard: $kb"
     fi
 
+    # Timezone
     echo ""
-    ui_section "🔐 Root Password"
-    echo ""
-    if ui_confirm "Use the same password for root?"; then
-        CFG[root_password]="${CFG[user_password]}"
-        ui_ok "Root: same as user"
-    else
-        local r1="" r2=""
-        r1=$(gum input --password --placeholder "Root password"         --width 50) || true
-        r2=$(gum input --password --placeholder "Confirm root password" --width 50) || true
-        if [[ "$r1" == "$r2" && -n "$r1" ]]; then
-            CFG[root_password]="$r1"; ui_ok "Root password set"
-        else
-            ui_warn "Mismatch — using user password for root."
-            CFG[root_password]="${CFG[user_password]}"
-        fi
-    fi
-    sleep 0.5
-}
-
-menu_timezone() {
-    ui_header
-    ui_section "🕐 Timezone"
+    _orbit_desc "Select timezone region, then city"
     echo ""
 
     local regions=""
@@ -611,9 +677,7 @@ menu_timezone() {
               | grep -vE '^(\+|posix|right|zoneinfo)$' | sort) || true
 
     local region=""
-    region=$(echo "$regions" \
-        | gum filter --placeholder "Search region..." --height 12 \
-            --header "Region:") || true
+    region=$(echo "$regions" | _orbit_filter "Search region..." 12) || true
 
     if [[ -n "$region" ]]; then
         local cities=""
@@ -621,9 +685,7 @@ menu_timezone() {
         if [[ -n "$cities" ]]; then
             echo ""
             local city=""
-            city=$(echo "$cities" \
-                | gum filter --placeholder "Search city..." --height 12 \
-                    --header "City:") || true
+            city=$(echo "$cities" | _orbit_filter "Search city..." 12) || true
             [[ -n "$city" ]] \
                 && CFG[timezone]="$region/$city" \
                 || CFG[timezone]="$region"
@@ -632,111 +694,89 @@ menu_timezone() {
         fi
         ui_ok "Timezone: ${CFG[timezone]}"
     fi
-    sleep 0.5
+    sleep 0.4
 }
 
-menu_parallel_downloads() {
-    ui_header
-    ui_section "⚡ Parallel Downloads"
-    echo ""
-    local s=""
-    s=$(printf '%s\n' \
-        "3      │ Conservative" \
-        "5      │ Default (recommended)" \
-        "10     │ Fast" \
-        "15     │ Maximum" \
-        | gum choose --height 6 --header "Parallel downloads:") || true
-    [[ -n "$s" ]] \
-        && CFG[parallel_downloads]=$(awk '{print $1}' <<< "$s") \
-        && ui_ok "Parallel downloads: ${CFG[parallel_downloads]}"
-    sleep 0.5
-}
+# ─────────────────────────── 4. PERFORMANCE ──────────────────────────────────
 
-menu_aur_helper() {
+panel_performance() {
     ui_header
-    ui_section "🔧 AUR Helper"
+    ui_section "Performance"
     echo ""
-    local s=""
-    s=$(printf '%s\n' \
-        "paru   │ Rust-based, feature-rich (Recommended)" \
-        "yay    │ Go-based, widely used" \
-        | gum choose --height 4 --header "AUR helper:") || true
-    [[ -n "$s" ]] \
-        && CFG[aur_helper]=$(awk '{print $1}' <<< "$s") \
-        && ui_ok "AUR helper: ${CFG[aur_helper]}"
-    sleep 0.5
-}
 
-menu_login_manager() {
-    ui_header
-    ui_section "🔐 Login Manager"
-    echo ""
-    local s=""
-    s=$(printf '%s\n' \
-        "sddm            │ Stable, widely used (Recommended)" \
-        "plasma-login    │ New KDE-native manager" \
-        | gum choose --height 4 --header "Login manager:") || true
-    [[ -n "$s" ]] \
-        && CFG[login_manager]=$(awk '{print $1}' <<< "$s") \
-        && ui_ok "Login manager: ${CFG[login_manager]}"
-    sleep 0.5
-}
-
-menu_cachyos_toggle() {
-    ui_header
-    ui_section "⚡ CachyOS Optimized Packages"
-    echo ""
-    gum style --foreground 245 --margin "0 2" \
-        "CachyOS rebuilds core system packages (glibc, mesa, etc.)" \
-        "with x86-64-v3/v4 instruction sets for modern CPUs." \
+    # CachyOS toggle
+    _orbit_desc \
+        "CachyOS rebuilds core packages (glibc, mesa, etc.)" \
+        "with x86-64-v3/v4 instructions for modern CPUs." \
         "" \
         "Safe on any CPU from ~2013 onwards (Haswell+)." \
-        "The installer auto-detects your CPU capability level."
+        "CPU capability is auto-detected."
     echo ""
     if ui_confirm "Enable CachyOS optimized packages?"; then
         CFG[cachyos_optimized]="yes"
-        ui_ok "CachyOS optimized packages: enabled"
+        ui_ok "CachyOS optimized: enabled"
     else
         CFG[cachyos_optimized]="no"
         ui_ok "Using vanilla Arch packages"
     fi
-    sleep 0.5
+
+    # Parallel downloads
+    echo ""
+    _orbit_desc "Simultaneous package downloads during install"
+    echo ""
+    local pd=""
+    pd=$(_orbit_choose "Parallel downloads:" 6 \
+        "3      // Conservative" \
+        "5      // Default" \
+        "10     // Fast" \
+        "15     // Maximum") || true
+    [[ -n "$pd" ]] \
+        && CFG[parallel_downloads]=$(awk '{print $1}' <<< "$pd") \
+        && ui_ok "Parallel downloads: ${CFG[parallel_downloads]}"
+    sleep 0.4
 }
 
-menu_handheld() {
-    ui_header
-    ui_section "🎮 Handheld Mode"
-    echo ""
-    gum style --foreground 245 --margin "0 2" \
-        "Handheld mode replaces linux-zen with linux-bazzite-bin" \
-        "and installs HHD (Handheld Daemon) for gamepad, gyro, and TDP control." \
-        "" \
-        "Supported: Steam Deck, ROG Ally, Legion Go, GPD Win, OneXPlayer, AYA NEO, etc." \
-        "" \
-        "inputplumber and steamos-manager will be masked; hhd will be enabled instead."
-    echo ""
-    if ui_confirm "Enable handheld mode?"; then
-        CFG[handheld]="yes"
-        ui_ok "Handheld mode: enabled (linux-bazzite-bin + HHD)"
-    else
-        CFG[handheld]="no"
-        ui_ok "Handheld mode: disabled (linux-zen kernel)"
-    fi
-    sleep 0.5
-}
+# ─────────────────────────── 5. DESKTOP ──────────────────────────────────────
 
-menu_extra_packages() {
+panel_desktop() {
     ui_header
-    ui_section "📦 Optional Packages"
-    echo ""
-    ui_info "Space to toggle, Enter to confirm"
+    ui_section "Desktop"
     echo ""
 
-    # Format: "pkgname  Description text"
+    # Login manager
+    _orbit_desc "Display manager for the graphical login screen"
+    echo ""
+    local lm=""
+    lm=$(_orbit_choose "Login manager:" 4 \
+        "sddm            // Stable, widely used" \
+        "plasma-login    // New KDE native manager") || true
+    [[ -n "$lm" ]] \
+        && CFG[login_manager]=$(awk '{print $1}' <<< "$lm") \
+        && ui_ok "Login manager: ${CFG[login_manager]}"
+
+    # AUR helper
+    echo ""
+    _orbit_desc "AUR helper for community packages"
+    echo ""
+    local ah=""
+    ah=$(_orbit_choose "AUR helper:" 4 \
+        "paru   // Rust, feature rich" \
+        "yay    // Go, widely used") || true
+    [[ -n "$ah" ]] \
+        && CFG[aur_helper]=$(awk '{print $1}' <<< "$ah") \
+        && ui_ok "AUR helper: ${CFG[aur_helper]}"
+
+    # Extra packages
+    echo ""
+    ui_section "Optional Packages"
+    echo ""
+    _orbit_desc "Space to toggle, Enter to confirm"
+    echo ""
+
     local catalogue=(
         "firefox            Web browser"
         "brave-bin          Brave browser"
-        "librewolf          Privacy-focused browser"
+        "librewolf          Privacy focused browser"
         "discord            Discord"
         "vesktop            Discord (enhanced client)"
         "telegram-desktop   Telegram"
@@ -753,7 +793,7 @@ menu_extra_packages() {
         "libreoffice-fresh  Office suite"
         "thunderbird        Email client"
         "nextcloud-client   Nextcloud sync"
-        "obsidian           Note-taking"
+        "obsidian           Note taking"
     )
 
     local labels=()
@@ -762,7 +802,7 @@ menu_extra_packages() {
         local pkg lbl
         pkg=$(awk '{print $1}' <<< "$entry")
         lbl=$(awk '{$1=""; print substr($0,2)}' <<< "$entry")
-        local display="$pkg  — $lbl"
+        local display="$pkg  // $lbl"
         labels+=("$display")
         label_to_pkg["$display"]="$pkg"
     done
@@ -770,7 +810,10 @@ menu_extra_packages() {
     local selected=""
     selected=$(printf '%s\n' "${labels[@]}" \
         | gum choose --no-limit --height 20 \
-            --header "Extra packages (space to select):") || true
+            --header "Extra packages (space to select):" \
+            --header.foreground $GUM_ACCENT \
+            --cursor.foreground $GUM_BRIGHT \
+            --selected.foreground $GUM_SUCCESS) || true
 
     ADDON_PKGS=""
     while IFS= read -r line; do
@@ -783,12 +826,38 @@ menu_extra_packages() {
     else
         ui_info "No extra packages selected"
     fi
-    sleep 0.5
+    sleep 0.4
 }
 
-# ────────────────────────────────────────────────────────────────────────────────
-# VALIDATION & SUMMARY
-# ────────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────── 6. HARDWARE ─────────────────────────────────────
+
+panel_hardware() {
+    ui_header
+    ui_section "Handheld Mode"
+    echo ""
+    _orbit_desc \
+        "Replaces linux-zen with linux-bazzite-bin and installs" \
+        "HHD (Handheld Daemon) for gamepad, gyro, and TDP control." \
+        "" \
+        "Supported: Steam Deck, ROG Ally, Legion Go, GPD Win," \
+        "OneXPlayer, AYA NEO, MSI Claw, and more." \
+        "" \
+        "inputplumber and steamos-manager will be masked;" \
+        "hhd will be enabled instead."
+    echo ""
+    if ui_confirm "Enable handheld mode?"; then
+        CFG[handheld]="yes"
+        ui_ok "Handheld mode: enabled (linux-bazzite-bin + HHD)"
+    else
+        CFG[handheld]="no"
+        ui_ok "Handheld mode: disabled (linux-zen)"
+    fi
+    sleep 0.4
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# REVIEW
+# ══════════════════════════════════════════════════════════════════════════════
 
 validate_config() {
     local problems=()
@@ -809,11 +878,11 @@ validate_config() {
 
     if [[ ${#problems[@]} -gt 0 ]]; then
         ui_header
-        gum style --foreground 196 --bold --margin "1 2" "❌ Configuration incomplete"
+        gum style --foreground $GUM_ERR --bold --margin "1 4" "XX Configuration incomplete"
         echo ""
         for p in "${problems[@]}"; do ui_err "$p"; done
         echo ""
-        gum input --placeholder "Press Enter to return to the menu..."
+        gum input --placeholder "Press Enter to return..."
         return 1
     fi
     return 0
@@ -821,7 +890,7 @@ validate_config() {
 
 show_summary() {
     ui_header
-    ui_section "📋 Installation Summary"
+    ui_section "Review Configuration"
     echo ""
 
     local enc_label="No"
@@ -841,33 +910,46 @@ show_summary() {
     local handheld_label="No (linux-zen)"
     [[ "${CFG[handheld]}" == "yes" ]] && handheld_label="Yes (linux-bazzite-bin + HHD)"
 
-    gum style --border rounded --border-foreground 212 --padding "1 2" --margin "0 2" \
-        "Locale:       ${CFG[locale]}" \
-        "Keyboard:     ${CFG[keyboard]}" \
-        "Timezone:     ${CFG[timezone]}" \
-        "Hostname:     ${CFG[hostname]}" \
-        "Username:     ${CFG[username]}" \
+    gum style --border rounded --border-foreground $GUM_PRIMARY \
+        --foreground $GUM_ACCENT --padding "1 3" --margin "0 4" \
+        "IDENTITY" \
+        "  Hostname     ${CFG[hostname]}" \
+        "  Username     ${CFG[username]}" \
         "" \
-        "Disk:         $disk_label" \
-        "Partition:    ${CFG[partition_mode]}" \
-        "Filesystem:   ${CFG[filesystem]}" \
-        "Encryption:   $enc_label" \
-        "Swap:         ${CFG[swap]}" \
+        "STORAGE" \
+        "  Disk         $disk_label" \
+        "  Mode         ${CFG[partition_mode]}" \
+        "  Filesystem   ${CFG[filesystem]}" \
+        "  Encryption   $enc_label" \
+        "  Swap         ${CFG[swap]}" \
         "" \
-        "Graphics:     Auto-detect (chwd)" \
-        "Optimized:    $cachyos_label" \
-        "Handheld:     $handheld_label" \
-        "Boot mode:    $boot_label" \
-        "AUR helper:   ${CFG[aur_helper]}" \
-        "Login mgr:    ${CFG[login_manager]}" \
-        "Downloads:    ${CFG[parallel_downloads]} parallel" \
-        "Extra pkgs:   ${ADDON_PKGS:-none}"
+        "REGION" \
+        "  Locale       ${CFG[locale]}" \
+        "  Keyboard     ${CFG[keyboard]}" \
+        "  Timezone     ${CFG[timezone]}" \
+        "" \
+        "SYSTEM" \
+        "  Boot mode    $boot_label" \
+        "  Graphics     Auto (chwd)" \
+        "  Optimized    $cachyos_label" \
+        "  AUR helper   ${CFG[aur_helper]}" \
+        "  Login mgr    ${CFG[login_manager]}" \
+        "  Downloads    ${CFG[parallel_downloads]} parallel" \
+        "  Handheld     $handheld_label" \
+        "  Extra pkgs   ${ADDON_PKGS:-none}"
     echo ""
 }
 
-# ────────────────────────────────────────────────────────────────────────────────
-# MAIN MENU
-# ────────────────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN LOOP
+# ══════════════════════════════════════════════════════════════════════════════
+
+_fmt_val() {
+    # Compact display value for the menu grid
+    local raw="$1" max="${2:-20}"
+    [[ ${#raw} -gt $max ]] && raw="${raw:0:$((max-2))}.."
+    echo "$raw"
+}
 
 run_main_menu() {
     while true; do
@@ -875,59 +957,52 @@ run_main_menu() {
 
         local boot_mode="BIOS"
         [[ "${CFG[uefi]}" == "yes" ]] && boot_mode="UEFI"
-        gum style --foreground 245 --margin "0 2" "Boot mode: $boot_mode"
+        gum style --foreground $GUM_DIM --margin "0 6" "Boot: $boot_mode"
         echo ""
 
-        local disk_status="${CFG[disk]:-Not configured}"
+        # Build status strings
+        local id_status="${CFG[username]:-unconfigured}"
+        [[ -n "${CFG[username]}" ]] && id_status="${CFG[username]}@${CFG[hostname]}"
+
+        local disk_status="${CFG[disk]:-unconfigured}"
         [[ "${CFG[partition_mode]}" == "manual" && -n "${CFG[root_part]}" ]] \
-            && disk_status="Manual: root=${CFG[root_part]}"
+            && disk_status="manual: ${CFG[root_part]}"
 
-        local cachyos_status="no"
-        [[ "${CFG[cachyos_optimized]}" == "yes" ]] \
-            && cachyos_status="yes (x86-64-v3/v4)"
+        local perf_status="vanilla"
+        [[ "${CFG[cachyos_optimized]}" == "yes" ]] && perf_status="CachyOS"
 
-        local handheld_status="no"
-        [[ "${CFG[handheld]}" == "yes" ]] \
-            && handheld_status="yes (linux-bazzite-bin + HHD)"
+        local hw_status="desktop"
+        [[ "${CFG[handheld]}" == "yes" ]] && hw_status="handheld"
 
         local entries=(
             ""
-            "1.  🗺️  Locales            │ ${CFG[locale]} / ${CFG[keyboard]}"
-            "2.  💾 Disk               │ $disk_status (${CFG[filesystem]})"
-            "3.  🔄 Swap               │ ${CFG[swap]}"
-            "4.  💻 Hostname           │ ${CFG[hostname]}"
-            "5.  👤 Credentials        │ ${CFG[username]:-Not configured}"
-            "6.  🕐 Timezone           │ ${CFG[timezone]}"
-            "7.  ⚡ Parallel DLs       │ ${CFG[parallel_downloads]}"
-            "8.  🔧 AUR Helper         │ ${CFG[aur_helper]}"
-            "9.  🔐 Login Manager      │ ${CFG[login_manager]}"
-            "10. 🚀 CachyOS Optimized  │ $cachyos_status"
-            "11. 📦 Extra Packages     │ ${ADDON_PKGS:-none}"
-            "12. 🎮 Handheld Mode      │ $handheld_status"
-            "──────────────────────────────────────────────"
-            "13. ✅ Begin Installation"
-            "0.  ❌ Exit"
+            "1.  Identity       $(_fmt_val "$id_status")"
+            "2.  Storage        $(_fmt_val "$disk_status") [${CFG[filesystem]}]"
+            "3.  Region         $(_fmt_val "${CFG[locale]}") / ${CFG[keyboard]}"
+            "4.  Performance    $(_fmt_val "$perf_status") / ${CFG[parallel_downloads]} DLs"
+            "5.  Desktop        ${CFG[login_manager]} / ${CFG[aur_helper]}"
+            "6.  Hardware       $hw_status"
+            "==========================================="
+            "7.  >> Begin Installation"
+            "0.  << Exit"
         )
 
         local choice=""
         choice=$(printf '%s\n' "${entries[@]}" \
-            | gum choose --height 20 \
-                --header $'Configure your installation:\n') || true
+            | gum choose --height 14 \
+                --header "Configure:" \
+                --header.foreground $GUM_ACCENT \
+                --cursor.foreground $GUM_BRIGHT \
+                --selected.foreground $GUM_SUCCESS) || true
 
         case "$choice" in
-            "1."*)  menu_locales ;;
-            "2."*)  menu_partitioning ;;
-            "3."*)  menu_swap ;;
-            "4."*)  menu_hostname ;;
-            "5."*)  menu_credentials ;;
-            "6."*)  menu_timezone ;;
-            "7."*)  menu_parallel_downloads ;;
-            "8."*)  menu_aur_helper ;;
-            "9."*)  menu_login_manager ;;
-            "10."*) menu_cachyos_toggle ;;
-            "11."*) menu_extra_packages ;;
-            "12."*) menu_handheld ;;
-            "13."*)
+            "1."*) panel_identity ;;
+            "2."*) panel_storage ;;
+            "3."*) panel_region ;;
+            "4."*) panel_performance ;;
+            "5."*) panel_desktop ;;
+            "6."*) panel_hardware ;;
+            "7."*)
                 if validate_config; then
                     show_summary
                     local prompt="THIS WILL ERASE ${CFG[disk]}. Continue?"
@@ -1588,15 +1663,93 @@ install_kde_minimal() {
 # ────────────────────────────────────────────────────────────────────────────────
 # DISTRO BRANDING — KDE System Settings logo + kcm-about-distroinfo
 # ────────────────────────────────────────────────────────────────────────────────
-#
-# Installs the OrbitOS logo to /usr/share/pixmaps/orbitos.png and wires it
-# into both os-release (LOGO=orbitos) and the KDE About This System panel
-# via kcm-about-distroinfo + /etc/xdg/kcm-about-distrorc.
-#
-# Logo source priority:
-#   1. $ORBIT_LOGO_URL   — direct URL you set at the top of this script
-#   2. Inline SVG        — auto-generated placeholder if no URL is set
-#
+
+install_distro_branding() {
+    ui_info "  Installing KDE distro branding (logo + About This System)..."
+
+
+    local icon_dir="$ORBIT_MOUNT/usr/share/icons/hicolor"
+    mkdir -p "$icon_dir/scalable/apps"
+    mkdir -p "$ORBIT_MOUNT/usr/share/pixmaps"
+
+    local logo_installed="no"
+
+    if [[ -n "$ORBIT_LOGO_URL" ]]; then
+        ui_info "  Fetching OrbitOS logo from $ORBIT_LOGO_URL ..."
+        if curl -fsSL "$ORBIT_LOGO_URL" \
+                -o "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" 2>/dev/null; then
+            # Install PNG at multiple icon sizes so KDE finds it
+            for size in 64 128 256; do
+                mkdir -p "$icon_dir/${size}x${size}/apps"
+                cp "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" \
+                   "$icon_dir/${size}x${size}/apps/orbitos.png"
+            done
+            logo_installed="yes"
+            ui_ok "Logo downloaded and installed to icon theme"
+        else
+            ui_warn "Logo download failed — generating SVG placeholder"
+        fi
+    fi
+
+    if [[ "$logo_installed" == "no" ]]; then
+        cat > "$icon_dir/scalable/apps/orbitos.svg" << 'SVGEOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" rx="32" fill="#0d1117"/>
+  <ellipse cx="128" cy="128" rx="88" ry="88"
+           fill="none" stroke="#17d4e8" stroke-width="8" stroke-dasharray="20 10"/>
+  <circle cx="128" cy="128" r="36" fill="#17d4e8"/>
+  <text x="128" y="228" font-family="sans-serif" font-size="28" font-weight="bold"
+        fill="#ffffff" text-anchor="middle" letter-spacing="4">ORBIT</text>
+</svg>
+SVGEOF
+        
+        cp "$icon_dir/scalable/apps/orbitos.svg" \
+           "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.svg"
+        ui_ok "SVG placeholder logo installed (replace $icon_dir/scalable/apps/orbitos.svg with your real logo)"
+    fi
+
+    # Rebuild icon cache so KDE picks it up
+    arch-chroot "$ORBIT_MOUNT" gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+
+    
+    cat > "$ORBIT_MOUNT/etc/os-release" << EOF
+NAME="OrbitOS"
+PRETTY_NAME="OrbitOS"
+ID=arch
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;23;147;209"
+HOME_URL="https://github.com/MurderFromMars"
+LOGO=orbitos
+EOF
+    cp "$ORBIT_MOUNT/etc/os-release" "$ORBIT_MOUNT/usr/lib/os-release" 2>/dev/null || true
+
+    cat > "$ORBIT_MOUNT/etc/lsb-release" << 'EOF'
+DISTRIB_ID="OrbitOS"
+DISTRIB_RELEASE="rolling"
+DISTRIB_DESCRIPTION="OrbitOS"
+EOF
+
+    # ── Optional: kcm-about-distroinfo for KDE About panel ────────────────
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed kcm-about-distroinfo 2>/dev/null || true
+
+    local logo_path="/usr/share/pixmaps/orbitos.png"
+    [[ "$logo_installed" == "no" ]] && logo_path="/usr/share/icons/hicolor/scalable/apps/orbitos.svg"
+
+    mkdir -p "$ORBIT_MOUNT/etc/xdg"
+    cat > "$ORBIT_MOUNT/etc/xdg/kcm-about-distrorc" << EOF
+[General]
+LogoPath=$logo_path
+Name=OrbitOS
+Website=https://github.com/MurderFromMars
+EOF
+
+    ui_ok "KDE About This System: OrbitOS branding configured"
+}
+
+# ────────────────────────────────────────────────────────────────────────────────
+# DISTRO BRANDING — KDE System Settings logo + kcm-about-distroinfo
+# ────────────────────────────────────────────────────────────────────────────────
 
 install_distro_branding() {
     ui_info "  Installing KDE distro branding (logo + About This System)..."
@@ -1808,6 +1961,30 @@ else
     warn "Re-run manually:  bash ~/Playstation-4-Plasma/install.sh"
 fi
 
+# ── Return to Gaming Mode desktop shortcut (handheld only) ────────────────────
+# Placed before the kernel swap so it runs regardless of swap outcome.
+# Detects handheld by checking for cachyos-handheld (installed by chwd).
+if pacman -Qq cachyos-handheld 2>/dev/null | grep -q .; then
+    log "Creating 'Return to Gaming Mode' desktop shortcut..."
+    mkdir -p "$HOME/Desktop"
+    cat > "$HOME/Desktop/Return to Gaming Mode.desktop" << 'RTGM'
+[Desktop Entry]
+Name=Return to Gaming Mode
+Comment=Log out of Desktop Mode and return to Gaming Mode
+Exec=qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout
+Icon=orbitos
+Terminal=false
+Type=Application
+Categories=Game;
+StartupNotify=false
+RTGM
+    chmod +x "$HOME/Desktop/Return to Gaming Mode.desktop"
+    # Mark as trusted so Plasma doesn't show the "untrusted" warning
+    gio set "$HOME/Desktop/Return to Gaming Mode.desktop" \
+        metadata::trusted true 2>/dev/null || true
+    ok "'Return to Gaming Mode' shortcut placed on desktop"
+fi
+
 # ── Handheld Kernel Swap (linux-zen → linux-bazzite-bin) ──────────────────────
 # Only runs if the installer left the orbitos-handheld marker file.
 # Builds from AUR on the live system where it actually works reliably.
@@ -1883,7 +2060,7 @@ DESKTOP
 
 perform_installation() {
     ui_header
-    gum style --foreground 212 --bold --margin "1 2" "🚀 Starting OrbitOS installation..."
+    gum style --foreground $GUM_ACCENT --bold --margin "1 4" "▓▒░ Starting OrbitOS installation..."
     echo ""
 
     # ── Phase 1: Disk ────────────────────────────────────────────────────────
@@ -1960,21 +2137,21 @@ perform_installation() {
 
     local handheld_note=""
     [[ "${CFG[handheld]}" == "yes" ]] \
-        && handheld_note="  • HHD Handheld Daemon → active on boot (run hhd-ui for settings)
-  • Bazzite kernel → builds on first Plasma login (reboot after)"
+        && handheld_note="  >> HHD Handheld Daemon active on boot (run hhd-ui for settings)
+  >> Bazzite kernel builds on first Plasma login (reboot after)"
 
     ui_header
-    gum style --foreground 82 --bold --border double --border-foreground 82 \
-        --align center --width 68 --margin "1 2" --padding "1 2" \
-        "✨ OrbitOS Installation Complete! ✨" \
+    gum style --foreground $GUM_SUCCESS --bold --border rounded --border-foreground $GUM_PRIMARY \
+        --align center --width 68 --margin "1 4" --padding "1 2" \
+        "▓▒░  OrbitOS Installation Complete  ░▒▓" \
         "" \
         "Remove installation media and reboot:" \
         "  sudo reboot" \
         "" \
         "On first login (log into Plasma desktop):" \
-        "  • Gaming (Steam, Lutris, Heroic) → ready to go" \
-        "  • CyberXero Toolkit → run: xero-toolkit" \
-        "  • PS4 Plasma Theme  → applies automatically" \
+        "  >> Gaming (Steam, Lutris, Heroic) ready to go" \
+        "  >> CyberXero Toolkit: run xero-toolkit" \
+        "  >> PS4 Plasma Theme applies automatically" \
         "$handheld_note"
     echo ""
 }

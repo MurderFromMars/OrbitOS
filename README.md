@@ -1,157 +1,112 @@
-<div align="center">
-
-
 ```
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                                                                               ║
-║                            ✨  O R B I T O S  ✨                              ║
-║                                                                               ║
-║                   Arch Linux · KDE Plasma · PS4 Theme                         ║
-║                       CyberXero Toolkit · CachyOS Optimiation                 ║
-║                                                                               ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
+░▒▓  O R B I T O S  ▓▒░
+Arch Linux // KDE Plasma // CachyOS // PS4 Theme
 ```
 
-**A minimal, gaming-ready Arch Linux installer with a PS4-inspired KDE Plasma experience.**
+A minimal, gaming-ready Arch Linux installer with a PS4-inspired KDE Plasma desktop,
+automatic hardware detection, and handheld device support.
 
-![Arch Linux](https://img.shields.io/badge/Arch_Linux-1793D1?style=for-the-badge&logo=arch-linux&logoColor=white)
-![KDE Plasma](https://img.shields.io/badge/KDE_Plasma-1D99F3?style=for-the-badge&logo=kde&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)
-
-</div>
+[![Arch Linux](https://img.shields.io/badge/Arch-Linux-1793D1?style=flat&logo=archlinux&logoColor=white)](https://archlinux.org)
+[![KDE Plasma](https://img.shields.io/badge/KDE-Plasma%206-1D99F3?style=flat&logo=kde&logoColor=white)](https://kde.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
-## ⚡ Install
+## Quick Start
 
-Boot into the [Arch Linux live ISO](https://archlinux.org/download/), connect to the internet, then run:
+Boot into the Arch Linux live ISO, connect to the internet, then run:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/orbitos-installer.sh)
 ```
 
-> **WiFi?** Connect first with `iwctl station wlan0 connect "YourSSID"` — then run the command above.
+> WiFi? Connect first with `iwctl station wlan0 connect "YourSSID"`
 
 ---
 
-## 🧩 What You Get
+## What You Get
 
-| Layer | Components |
-|---|---|
-| **Base** | Arch Linux · linux-zen kernel · btrfs/ext4/xfs · LUKS2 encryption |
-| **Desktop** | KDE Plasma (minimal) · Wayland · SDDM or plasma-login |
-| **Theme** | PS4 Plasma Theme (applied automatically on first login) |
-| **Toolkit** | [CyberXero Toolkit](https://github.com/synsejse/xero-toolkit) — system management GUI |
-| **Gaming** | CachyOS gaming meta · Steam · Lutris · Wine · MangoHud · GameMode |
-| **Repos** | XeroLinux · Chaotic-AUR · CachyOS (extra, extra-opt) |
-| **Audio** | PipeWire · WirePlumber · ALSA · JACK |
-| **Network** | NetworkManager · avahi · Bluetooth |
+**Base** — Arch Linux, linux-zen kernel, btrfs/ext4/xfs, LUKS2 encryption, GRUB
 
----
+**Desktop** — KDE Plasma 6 (minimal), Wayland, SDDM or plasma-login
 
-## 🛠️ Installer Features
+**Theme** — PS4 Plasma Theme, applied automatically on first login
 
-- **Interactive TUI** powered by [gum](https://github.com/charmbracelet/gum)
-- **Auto or manual partitioning** — dual-boot friendly
-- **Full disk encryption** (LUKS2) with BIOS and UEFI support
-- **Graphics auto-detection** — Intel, AMD, NVIDIA (open/legacy), hybrid combos
-- **zram swap** (zstd) or swap file
-- **AUR helper** — paru or yay
-- **Optional packages** — Firefox, Brave, Discord, VSCodium, Steam, and more
-- **CachyOS repos** — optimised x86-64-v3/v4 packages where supported
-- **Handheld mode** — linux-bazzite-bin kernel + HHD for portable gaming PCs
-- **Self-contained** — installs its own dependencies from the live ISO
+**Toolkit** — CyberXero Toolkit, a GTK4 system management GUI built from source
+
+**Gaming** — CachyOS gaming meta, Steam, Lutris, Heroic, Wine/Proton, MangoHud, GameMode
+
+**Repos** — Chaotic-AUR, CachyOS (extra, extra-opt)
+
+**Audio** — PipeWire, WirePlumber, ALSA, JACK
+
+**Handheld** — HHD, bazzite kernel, gamescope session (Steam Deck, ROG Ally, Legion Go, etc.)
 
 ---
 
-## 🖥️ System Requirements
+## Installer
 
-| | Minimum | Recommended |
-|---|---|---|
-| **CPU** | x86-64 (any) | x86-64-v3+ (Ryzen 3000+ / Intel 10th gen+) |
-| **RAM** | 4 GB | 16 GB |
-| **Storage** | 40 GB | 60 GB+ (NVMe preferred) |
-| **GPU** | Any | NVIDIA RTX / AMD RDNA |
-| **Boot** | BIOS or UEFI | UEFI |
+Single file. Self-contained. Installs its own dependencies from the live ISO.
+
+The TUI is built on [gum](https://github.com/charmbracelet/gum) with a custom
+neon blue theme and grouped configuration panels.
+
+**Identity** — hostname, username, passwords
+
+**Storage** — auto or manual partitioning, filesystem, LUKS2 encryption, swap
+
+**Region** — locale, keyboard layout, timezone
+
+**Performance** — CachyOS optimized packages, parallel downloads
+
+**Desktop** — login manager, AUR helper, optional packages
+
+**Hardware** — handheld mode toggle
+
+**Driver detection** is fully automatic via
+[chwd](https://github.com/CachyOS/chwd) — Intel, AMD, NVIDIA (open/legacy),
+hybrid combos, VMs, and handheld devices are all handled without user input.
 
 ---
 
-## 🔐 Encryption Notes
+## Handheld Mode
+
+For Steam Deck, ROG Ally, Legion Go, GPD Win, OneXPlayer, AYA NEO, MSI Claw,
+and other supported devices.
+
+Enables HHD (Handheld Daemon) for gamepad, gyro, and TDP control. The bazzite
+kernel is built from the AUR on first Plasma login (AUR builds are unreliable
+inside an install chroot, so this is deferred intentionally). After the bazzite
+kernel installs, linux-zen is removed and GRUB boots bazzite cleanly.
+
+A "Return to Gaming Mode" shortcut is placed on the desktop automatically,
+using the OrbitOS logo. It logs out Plasma with no confirmation dialog, returning
+to the gamescope session.
+
+---
+
+## Encryption
 
 LUKS2 encryption is supported on both UEFI and BIOS systems.
 
-- **UEFI** — Argon2id KDF (default, strong). The initramfs unlocks root at boot.
-- **BIOS + root-only** — Argon2id. initramfs handles decryption.
-- **BIOS + boot encryption** — pbkdf2 KDF is used automatically. GRUB cannot decrypt Argon2id, so the installer handles this for you transparently.
+**UEFI** — Argon2id KDF (default). The initramfs unlocks root at boot.
+
+**BIOS + root only** — Argon2id. initramfs handles decryption.
+
+**BIOS + boot encryption** — pbkdf2 KDF is used automatically. GRUB cannot
+decrypt Argon2id, so the installer handles this transparently.
 
 ---
 
-## 🎮 CachyOS Gaming Stack
+## PS4 Plasma Theme
 
-OrbitOS ships the full CachyOS gaming layer on top of Arch:
+Applied automatically on first login via a one-shot KDE autostart script. It
+requires a live Plasma session (qdbus6 panel scripting, KWin effect compilation,
+video wallpaper activation) so it cannot be set up during install.
 
-- `cachyos-gaming-meta` — Steam, Lutris, Wine/Proton, GameMode, MangoHud, vkBasalt, goverlay, and more
-- `cachyos-gaming-applications` — Heroic Launcher, Bottles, ProtonPlus, ProtonUp-Qt
+On first login a terminal window opens, applies the theme, and removes itself.
 
-CachyOS packages are compiled with optimisations for modern CPUs and take precedence over standard Arch packages where both exist.
-
----
-
-## 🕹️ Handheld Mode
-
-OrbitOS includes optional handheld support for portable gaming PCs. Enable it from the installer menu (option 12) before starting the install.
-
-### Supported Devices
-
-Steam Deck, ROG Ally, ROG Ally X, Legion Go, GPD Win (3/4/Max), OneXPlayer, AYA NEO, MSI Claw, and other handheld PCs with HHD-compatible hardware.
-
-### What It Does
-
-**During installation:**
-- Installs [HHD (Handheld Daemon)](https://github.com/hhd-vg/hhd) + hhd-ui for gamepad emulation, gyro, and TDP control
-- Masks `inputplumber` and `steamos-manager` to prevent conflicts
-- Enables `hhd@<user>` as a systemd service — active immediately on first boot
-- Writes a marker file for the first-boot kernel swap
-
-**On first Plasma login:**
-- The first-boot setup script builds `linux-bazzite-bin` from the AUR automatically (this takes a few minutes — a terminal window stays open with progress)
-- Once installed, `linux-zen` is removed and `grub-hook` regenerates the GRUB config
-- The user is prompted to reboot into the Bazzite kernel
-
-### Why Deferred?
-
-AUR builds require a working `makepkg` environment with a non-root user and functioning package manager — conditions that are unreliable inside an install chroot. By deferring the kernel build to the first live Plasma session, it just works.
-
-HHD itself is installed from CachyOS repos during the main install and works fine on `linux-zen` in the interim, so gamepad input and basic controls are functional from the very first boot.
-
-### Manual Recovery
-
-If the first-boot kernel build fails for any reason:
-
-```bash
-# Build and install the Bazzite kernel
-paru -S linux-bazzite-bin
-
-# Remove linux-zen
-sudo pacman -Rdd linux-zen linux-zen-headers
-
-# grub-hook handles the rest — just reboot
-sudo reboot
-```
-
----
-
-## Cachy CHWD integration
-
-installs and runs chwd as part of the installation script, this automatically manages drivers in the same manner as cachy meaning nvidia drivers will be setup automatically and appropriately free of user intervention as well as profiles for hybrid gpu setups optimus etc this is also the backbone of handheld support. adding the needed handheld packages and configs for a steam deck like experience 
-
-## 🎨 PS4 Plasma Theme
-
-The [PS4 Plasma Theme](https://github.com/MurderFromMars/Playstation-4-Plasma) is applied automatically on first login via a one-shot KDE autostart script. It requires a live Plasma session to apply correctly (qdbus6 panel scripting, KWin effect compilation, video wallpaper activation), so it can't be set up during install.
-
-On first login a terminal window will open, apply the theme, and remove itself. It never runs again.
-
-To re-apply manually at any time:
+To re-apply manually:
 
 ```bash
 bash ~/Playstation-4-Plasma/install.sh
@@ -159,39 +114,53 @@ bash ~/Playstation-4-Plasma/install.sh
 
 ---
 
-## ⚙️ CyberXero Toolkit
+## CyberXero Toolkit
 
-Built from source during installation. Provides a GTK4 GUI for:
+Built from source with cargo during installation. Provides a GTK4 GUI for:
 
-- Hardware driver management
-- Optimization service toggles (ananicy-cpp, bpftune, systemd-oomd, profile-sync-daemon)
-- Gaming meta package management
-- Decky Loader integration
-- VM/container tooling
-- Auto-updates via GitHub commit hash comparison
+hardware driver management, optimization service toggles (ananicy-cpp, bpftune,
+systemd-oomd, profile-sync-daemon), gaming meta package management, Decky Loader
+integration, VM/container tooling, and auto-updates via GitHub commit hash comparison.
 
-Launch it from the app menu or run `xero-toolkit` in a terminal.
+Launch from the app menu or run `xero-toolkit` in a terminal.
+
+---
+
+## System Requirements
+
+**Minimum** — x86-64 CPU, 4 GB RAM, 40 GB storage, any GPU, BIOS or UEFI
+
+**Recommended** — x86-64-v3+ (Ryzen 3000+ / Intel 10th gen+), 16 GB RAM,
+60 GB+ NVMe, NVIDIA RTX or AMD RDNA, UEFI
+
+---
+
+## Post-Install
+
+```bash
+# update everything
+sudo pacman -Syu
+
+# launch the toolkit
+xero-toolkit
+
+# steam launch options
+gamemoderun %command%     # performance mode
+mangohud %command%        # HUD overlay
+```
+
+---
+
+## Credits
+
+[CachyOS](https://cachyos.org) — optimized repos, gaming meta, chwd hardware detection
+
+[Chaotic-AUR](https://aur.chaotic.cx) — prebuilt AUR packages
+
+[charmbracelet/gum](https://github.com/charmbracelet/gum) — TUI components
 
 ---
 
 
+Made by MurderFromMars
 
-## 🤝 Credits
-
-- [XeroLinux](https://xerolinux.xyz) — toolkit foundation and inspiration for this project
-- [Chaotic-AUR](https://aur.chaotic.cx) — prebuilt AUR packages
-- [CachyOS](https://cachyos.org) — optimised repos and gaming meta
-- [charmbracelet/gum](https://github.com/charmbracelet/gum) — TUI components
-
----
-
-## Why Another Arch Spin?
-
-I grow tired of the issues of Archinstall, and wanted to create a way to conveniently create MY ideal Arch system from an Arch ISO 
-as such this is highly opinionated and won't be for everyone. if you've seen my theming and such in the past then you know what this looks like. as with my themes you will need to set your own keybinds for plasma 
-
-<div align="center">
-
-Made with love by [MurderFromMars](https://youtube.com/MurderFromMars)
-
-</div>
