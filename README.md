@@ -157,8 +157,6 @@ mangohud %command%        # HUD overlay
 
 [Chaotic-AUR](https://aur.chaotic.cx) — prebuilt AUR packages
 
-DarkXero  — For general motivation via general douchebaggery 
-
 [charmbracelet/gum](https://github.com/charmbracelet/gum) — TUI components
 
 ---
