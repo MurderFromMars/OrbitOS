@@ -1748,6 +1748,93 @@ EOF
 }
 
 # ────────────────────────────────────────────────────────────────────────────────
+# DISTRO BRANDING — KDE System Settings logo + kcm-about-distroinfo
+# ────────────────────────────────────────────────────────────────────────────────
+
+install_distro_branding() {
+    ui_info "  Installing KDE distro branding (logo + About This System)..."
+
+
+    local icon_dir="$ORBIT_MOUNT/usr/share/icons/hicolor"
+    mkdir -p "$icon_dir/scalable/apps"
+    mkdir -p "$ORBIT_MOUNT/usr/share/pixmaps"
+
+    local logo_installed="no"
+
+    if [[ -n "$ORBIT_LOGO_URL" ]]; then
+        ui_info "  Fetching OrbitOS logo from $ORBIT_LOGO_URL ..."
+        if curl -fsSL "$ORBIT_LOGO_URL" \
+                -o "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" 2>/dev/null; then
+            # Install PNG at multiple icon sizes so KDE finds it
+            for size in 64 128 256; do
+                mkdir -p "$icon_dir/${size}x${size}/apps"
+                cp "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.png" \
+                   "$icon_dir/${size}x${size}/apps/orbitos.png"
+            done
+            logo_installed="yes"
+            ui_ok "Logo downloaded and installed to icon theme"
+        else
+            ui_warn "Logo download failed — generating SVG placeholder"
+        fi
+    fi
+
+    if [[ "$logo_installed" == "no" ]]; then
+        cat > "$icon_dir/scalable/apps/orbitos.svg" << 'SVGEOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" rx="32" fill="#0d1117"/>
+  <ellipse cx="128" cy="128" rx="88" ry="88"
+           fill="none" stroke="#17d4e8" stroke-width="8" stroke-dasharray="20 10"/>
+  <circle cx="128" cy="128" r="36" fill="#17d4e8"/>
+  <text x="128" y="228" font-family="sans-serif" font-size="28" font-weight="bold"
+        fill="#ffffff" text-anchor="middle" letter-spacing="4">ORBIT</text>
+</svg>
+SVGEOF
+        
+        cp "$icon_dir/scalable/apps/orbitos.svg" \
+           "$ORBIT_MOUNT/usr/share/pixmaps/orbitos.svg"
+        ui_ok "SVG placeholder logo installed (replace $icon_dir/scalable/apps/orbitos.svg with your real logo)"
+    fi
+
+    # Rebuild icon cache so KDE picks it up
+    arch-chroot "$ORBIT_MOUNT" gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+
+    
+    cat > "$ORBIT_MOUNT/etc/os-release" << EOF
+NAME="OrbitOS"
+PRETTY_NAME="OrbitOS"
+ID=arch
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;23;147;209"
+HOME_URL="https://github.com/MurderFromMars"
+LOGO=orbitos
+EOF
+    cp "$ORBIT_MOUNT/etc/os-release" "$ORBIT_MOUNT/usr/lib/os-release" 2>/dev/null || true
+
+    cat > "$ORBIT_MOUNT/etc/lsb-release" << 'EOF'
+DISTRIB_ID="OrbitOS"
+DISTRIB_RELEASE="rolling"
+DISTRIB_DESCRIPTION="OrbitOS"
+EOF
+
+    # ── Optional: kcm-about-distroinfo for KDE About panel ────────────────
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed kcm-about-distroinfo 2>/dev/null || true
+
+    local logo_path="/usr/share/pixmaps/orbitos.png"
+    [[ "$logo_installed" == "no" ]] && logo_path="/usr/share/icons/hicolor/scalable/apps/orbitos.svg"
+
+    mkdir -p "$ORBIT_MOUNT/etc/xdg"
+    cat > "$ORBIT_MOUNT/etc/xdg/kcm-about-distrorc" << EOF
+[General]
+LogoPath=$logo_path
+Name=OrbitOS
+Website=https://github.com/MurderFromMars
+EOF
+
+    ui_ok "KDE About This System: OrbitOS branding configured"
+}
+
+# ────────────────────────────────────────────────────────────────────────────────
 # ORBITOS EXTRAS: CyberXero Toolkit + PS4 Plasma Theme
 # ────────────────────────────────────────────────────────────────────────────────
 
