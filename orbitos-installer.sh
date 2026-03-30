@@ -18,12 +18,9 @@ readonly ORBIT_VERSION="1.0"
 readonly ORBIT_NAME="OrbitOS"
 readonly ORBIT_MOUNT="/mnt"
 
-# Optional: set this to a direct URL to your logo PNG (e.g. raw GitHub link).
-# If left empty the installer will generate a simple SVG placeholder instead.
 ORBIT_LOGO_URL="https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/ps4.png"
 
 # ── Neon blue terminal palette ───────────────────────────────────────────────
-# Used as ANSI fallback when gum is absent.
 _nb=$'\033[1;34m'      # neon blue (bold blue)
 _nc=$'\033[1;36m'      # neon cyan
 _nw=$'\033[1;37m'      # bright white
@@ -76,9 +73,6 @@ ADDON_PKGS=""
 # ══════════════════════════════════════════════════════════════════════════════
 # RENDER ENGINE
 # ══════════════════════════════════════════════════════════════════════════════
-# Every visible element goes through these functions.  Backend install code
-# calls ui_info / ui_ok / ui_warn / ui_err so those names stay stable.
-# Everything else is new.
 
 _has_gum() { command -v gum &>/dev/null; }
 
@@ -304,7 +298,6 @@ bootstrap_deps() {
 # PACMAN HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Ensure ParallelDownloads is set to the configured value
 pacman_set_parallel() {
     local conf="$1" n="${CFG[parallel_downloads]}"
     if grep -q '^#*ParallelDownloads' "$conf"; then
@@ -314,7 +307,6 @@ pacman_set_parallel() {
     fi
 }
 
-# Toggle on useful pacman flags (idempotent)
 pacman_set_opts() {
     local conf="$1"
     local flags=(Color ILoveCandy VerbosePkgLists DisableDownloadTimeout)
@@ -330,13 +322,6 @@ pacman_set_opts() {
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION PANELS
 # ══════════════════════════════════════════════════════════════════════════════
-# Menus are grouped into logical panels.  Order:
-#   1. Identity      hostname + user + root password
-#   2. Storage        disk mode + filesystem + encryption + swap
-#   3. Region         locale + keyboard + timezone
-#   4. Performance    CachyOS toggle + parallel downloads
-#   5. Desktop        login manager + AUR helper + extra packages
-#   6. Hardware       handheld mode
 
 # ─────────────────────────── 1. IDENTITY ─────────────────────────────────────
 
@@ -1178,8 +1163,6 @@ add_temp_repo() {
 install_base_system() {
     add_temp_repo
 
-    # linux-zen is always the pacstrap kernel.  In handheld mode it gets
-    # replaced by linux-bazzite-bin (built from AUR) on first Plasma login.
     local pkgs="base base-devel linux-zen linux-zen-headers"
 
     grep -q "GenuineIntel" /proc/cpuinfo && pkgs+=" intel-ucode"
@@ -1249,8 +1232,6 @@ add_repos() {
     fi
 }
 
-## Map console keymap names to X11 layout + variant.
-## Sets _x11_layout and _x11_variant for the caller.
 _resolve_x11_keyboard() {
     local keymap="$1"
     _x11_variant=""
@@ -1276,8 +1257,6 @@ configure_system() {
     echo "LANG=${CFG[locale]}"     > "$ORBIT_MOUNT/etc/locale.conf"
     echo "KEYMAP=${CFG[keyboard]}" > "$ORBIT_MOUNT/etc/vconsole.conf"
 
-    # ── Graphical session keyboard (X11 / XWayland + KDE Wayland) ────────
-    # vconsole.conf only affects TTY consoles; Plasma needs its own config.
     _resolve_x11_keyboard "${CFG[keyboard]}"
 
     mkdir -p "$ORBIT_MOUNT/etc/X11/xorg.conf.d"
@@ -1291,7 +1270,6 @@ Section "InputClass"
 EndSection
 EOF
 
-    # KDE Plasma Wayland reads keyboard layout from kxkbrc
     local kde_dir="$ORBIT_MOUNT/home/${CFG[username]}/.config"
     mkdir -p "$kde_dir"
     cat > "$kde_dir/kxkbrc" << EOF
@@ -1428,8 +1406,6 @@ install_aur_helper() {
 install_drivers_chwd() {
     ui_info "  Verifying kernel state..."
 
-    # linux-zen is the active kernel for all installs.  In handheld mode the
-    # swap to linux-bazzite-bin happens on first Plasma login, not here.
     local stray=""
     stray=$(arch-chroot "$ORBIT_MOUNT" pacman -Qqs '^linux-cachyos' 2>/dev/null || true)
     if [[ -n "$stray" ]]; then
@@ -1453,7 +1429,6 @@ install_drivers_chwd() {
         || { ui_warn "chwd auto-detection failed — install drivers manually after reboot."; return 0; }
     ui_ok "Hardware drivers installed via chwd"
 
-    # If NVIDIA modules were injected by chwd, add the required kernel parameters
     if [[ -f "$ORBIT_MOUNT/etc/mkinitcpio.conf.d/10-chwd.conf" ]] \
        && grep -q 'nvidia' "$ORBIT_MOUNT/etc/mkinitcpio.conf.d/10-chwd.conf" 2>/dev/null; then
         ui_info "  NVIDIA detected — patching GRUB kernel parameters..."
@@ -1486,13 +1461,6 @@ install_drivers_chwd() {
 # HANDHELD KERNEL + SERVICES
 # ────────────────────────────────────────────────────────────────────────────────
 
-# Writes a marker file so the first-boot autostart script knows to build
-# linux-bazzite-bin from the AUR on first Plasma login.  The AUR build is
-# deferred because it's unreliable inside an install chroot.  After bazzite
-# is installed, linux-zen is removed so GRUB boots bazzite cleanly.
-# grub-hook auto-regenerates the GRUB config on kernel install/remove.
-# HHD + services are still installed during the main install (they work
-# fine on linux-zen until bazzite is ready).
 prepare_handheld_marker() {
     [[ "${CFG[handheld]}" == "yes" ]] || return 0
 
@@ -1504,9 +1472,7 @@ prepare_handheld_marker() {
     ui_ok "Handheld kernel swap deferred to first Plasma login"
 }
 
-# Called at the end of install_drivers_chwd when handheld mode is active.
-# Installs hhd + hhd-ui from CachyOS/Chaotic repos, masks the conflicting
-# inputplumber and steamos-manager units, then enables the per-user hhd service.
+
 setup_handheld_services() {
     [[ "${CFG[handheld]}" == "yes" ]] || return 0
 
@@ -1643,8 +1609,6 @@ install_kde_minimal() {
             || ui_warn "Some extra packages failed — install manually after reboot"
     fi
 
-    # tuned-ppd provides a power-profiles-daemon compatibility layer;
-    # enable tuned-ppd directly rather than the old unit name.
     arch-chroot "$ORBIT_MOUNT" systemctl enable \
         cups.socket \
         bluetooth \
@@ -1672,15 +1636,6 @@ install_kde_minimal() {
 # ────────────────────────────────────────────────────────────────────────────────
 # DISTRO BRANDING — KDE System Settings logo + kcm-about-distroinfo
 # ────────────────────────────────────────────────────────────────────────────────
-#
-# Installs the OrbitOS logo to /usr/share/pixmaps/orbitos.png and wires it
-# into both os-release (LOGO=orbitos) and the KDE About This System panel
-# via kcm-about-distroinfo + /etc/xdg/kcm-about-distrorc.
-#
-# Logo source priority:
-#   1. $ORBIT_LOGO_URL   — direct URL you set at the top of this script
-#   2. Inline SVG        — auto-generated placeholder if no URL is set
-#
 
 install_distro_branding() {
     ui_info "  Installing KDE distro branding (logo + About This System)..."
@@ -1838,9 +1793,6 @@ TOOLINSTALL
 
     cat > "$autostart/orbitos-ps4-theme.sh" << 'FIRSTBOOT'
 #!/usr/bin/env bash
-# OrbitOS — First-boot setup script.
-# Applies PS4 Plasma theme + handheld kernel swap (if enabled).
-# Runs once on first Plasma login, then removes itself.
 
 SELF_SCRIPT="$HOME/.config/autostart/orbitos-ps4-theme.sh"
 SELF_DESKTOP="$HOME/.config/autostart/orbitos-ps4-theme.desktop"
@@ -1893,8 +1845,6 @@ else
 fi
 
 # ── Return to Gaming Mode desktop shortcut (handheld only) ────────────────────
-# Placed before the kernel swap so it runs regardless of swap outcome.
-# Detects handheld by checking for cachyos-handheld (installed by chwd).
 if pacman -Qq cachyos-handheld 2>/dev/null | grep -q .; then
     log "Creating 'Return to Gaming Mode' desktop shortcut..."
     mkdir -p "$HOME/Desktop"
@@ -1917,10 +1867,7 @@ RTGM
 fi
 
 # ── Handheld Kernel Swap (linux-zen → linux-bazzite-bin) ──────────────────────
-# Only runs if the installer left the orbitos-handheld marker file.
-# Builds from AUR on the live system where it actually works reliably.
-# After a successful install, linux-zen is removed so bazzite is the
-# only boot target — no ambiguity in GRUB.
+
 if [[ -f "$HANDHELD_MARKER" ]]; then
     echo ""
     printf "\033[1;35m── Handheld Mode: Bazzite Kernel ──\033[0m\n\n"
@@ -2021,11 +1968,6 @@ perform_installation() {
     install_aur_helper
 
     # ── Phase 4: Handheld marker ─────────────────────────────────────────────
-    # If handheld mode is enabled, write a marker file.  The bazzite kernel
-    # build is deferred to the first-boot autostart script where AUR builds
-    # work reliably.  After bazzite installs, linux-zen is removed and
-    # grub-hook regenerates the GRUB config automatically.
-    # HHD + services are installed normally and work fine on linux-zen.
     if [[ "${CFG[handheld]}" == "yes" ]]; then
         prepare_handheld_marker
     fi
