@@ -11,14 +11,9 @@ iso_version="$(date +%Y.%m.%d)"
 install_dir="arch"
 buildmodes=('iso')
 bootmodes=(
-    'bios.syslinux.mbr'
-    'bios.syslinux.eltorito'
-    'uefi-ia32.grub.esp'
-    'uefi-x64.grub.esp'
-    'uefi-ia32.grub.eltorito'
-    'uefi-x64.grub.eltorito'
+    'bios.syslinux'
+    'uefi.grub'
 )
-script="customize_airootfs.sh"
 arch="x86_64"
 pacman_conf="pacman.conf"
 airootfs_image_type="squashfs"

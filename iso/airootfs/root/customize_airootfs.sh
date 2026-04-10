@@ -34,15 +34,15 @@ if [[ -d "$OVERRIDES/branding/orbitos" ]]; then
     cp -rf "$OVERRIDES/branding/orbitos/"* /etc/calamares/branding/orbitos/
 fi
 
-# Ensure archiso hooks are in mkinitcpio and rebuild initramfs
-# The drop-in may not have been picked up during package install
+# Ensure archiso hooks are in mkinitcpio drop-in
+# mkarchiso rebuilds initramfs after this script runs
 echo ":: Configuring mkinitcpio with archiso hooks..."
 mkdir -p /etc/mkinitcpio.conf.d
 cat > /etc/mkinitcpio.conf.d/archiso.conf << 'MKINIT'
-HOOKS=(archiso archiso_loop_mnt kms keyboard consolefont block filesystems)
+HOOKS=(base udev microcode modconf kms memdisk archiso archiso_loop_mnt block filesystems keyboard)
+COMPRESSION="xz"
+COMPRESSION_OPTIONS=(-9e)
 MKINIT
-mkinitcpio -P
-echo ":: Initramfs rebuilt with archiso hooks."
 
 # Enable services for the live session
 systemctl enable NetworkManager.service 2>/dev/null || true
