@@ -167,19 +167,22 @@ mangohud %command%        # HUD overlay
 
 ## Building the ISO
 
-Requires an Arch Linux host with `archiso` and Chaotic-AUR configured.
+Requires an Arch Linux host with `archiso` installed.
 
 ```bash
-sudo pacman -S archiso
-
-cd iso
+sudo pacman -S archiso git
+git clone https://github.com/MurderFromMars/OrbitOS.git
+cd OrbitOS/iso
 sudo ./build.sh
 ```
 
-The ISO is written to `iso/out/`. Write it to USB with:
+The build script handles Chaotic-AUR keyring setup automatically if needed.
+The finished ISO is written to `OrbitOS/iso/out/`.
+
+Write it to USB (replace `/dev/sdX` with your drive):
 
 ```bash
-sudo dd bs=4M if=iso/out/orbitos-*.iso of=/dev/sdX status=progress oflag=sync
+sudo dd bs=4M if=out/orbitos-*.iso of=/dev/sdX status=progress oflag=sync
 ```
 
 To clean and rebuild:
