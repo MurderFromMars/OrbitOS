@@ -1,0 +1,28 @@
+---
+componentName: orbitos
+
+strings:
+    productName:         OrbitOS
+    shortProductName:    OrbitOS
+    version:             rolling
+    shortVersion:        rolling
+    versionedName:       OrbitOS rolling
+    shortVersionedName:  OrbitOS
+    bootloaderEntryName: OrbitOS
+    productUrl:          https://github.com/MurderFromMars/OrbitOS
+    supportUrl:          https://github.com/MurderFromMars/OrbitOS/issues
+    knownIssuesUrl:      https://github.com/MurderFromMars/OrbitOS/issues
+    releaseNotesUrl:     https://github.com/MurderFromMars/OrbitOS
+
+images:
+    productLogo:         "orbitos-logo.png"
+    productIcon:         "orbitos-logo.png"
+    productWelcome:      "orbitos-logo.png"
+
+slideshow:               "show.qml"
+
+style:
+    sidebarBackground:   "#0d1117"
+    sidebarText:         "#17d4e8"
+    sidebarTextSelect:   "#ffffff"
+    sidebarTextHighlight: "#1793D1"

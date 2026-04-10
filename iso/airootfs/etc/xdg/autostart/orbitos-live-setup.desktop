@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=OrbitOS Live Setup
+Comment=Configure the live environment on boot
+Exec=/usr/local/lib/orbitos/orbitos-live-setup.sh
+Hidden=false
+NoDisplay=true
+X-KDE-autostart-phase=2

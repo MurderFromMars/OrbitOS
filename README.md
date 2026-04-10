@@ -14,11 +14,25 @@ automatic hardware detection, and handheld device support.
 
 ## Quick Start
 
-Boot into the Arch Linux live ISO, connect to the internet, then run:
+### Option 1: OrbitOS ISO (Recommended)
+
+Download the OrbitOS ISO, write it to USB, and boot. The live desktop includes
+two installers:
+
+- **Install OrbitOS** — Calamares graphical installer (desktop shortcut)
+- **Install OrbitOS (TUI)** — Original terminal installer (desktop shortcut)
+
+### Option 2: Script Install (no OrbitOS ISO needed)
+
+Boot into a stock [Arch Linux live ISO](https://archlinux.org/download/),
+connect to the internet, then run:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/orbitos-installer.sh)
 ```
+
+The TUI installer is self-contained — it fetches its own dependencies and
+does not require the OrbitOS ISO.
 
 > WiFi? Connect first with `iwctl station wlan0 connect "YourSSID"`
 
@@ -147,6 +161,31 @@ xero-toolkit
 # steam launch options
 gamemoderun %command%     # performance mode
 mangohud %command%        # HUD overlay
+```
+
+---
+
+## Building the ISO
+
+Requires an Arch Linux host with `archiso` and Chaotic-AUR configured.
+
+```bash
+sudo pacman -S archiso
+
+cd iso
+sudo ./build.sh
+```
+
+The ISO is written to `iso/out/`. Write it to USB with:
+
+```bash
+sudo dd bs=4M if=iso/out/orbitos-*.iso of=/dev/sdX status=progress oflag=sync
+```
+
+To clean and rebuild:
+
+```bash
+sudo ./build.sh clean
 ```
 
 ---
