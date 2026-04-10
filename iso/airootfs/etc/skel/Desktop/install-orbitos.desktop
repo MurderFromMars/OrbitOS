@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Install OrbitOS
-Comment=Launch the OrbitOS installer (Calamares)
-Exec=sudo calamares
-Icon=calamares
-Terminal=false
-Categories=System;
-StartupNotify=true

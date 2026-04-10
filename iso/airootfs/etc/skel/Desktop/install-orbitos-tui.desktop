@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Install OrbitOS (TUI)
-Comment=Launch the OrbitOS terminal installer
-Exec=konsole -e sudo bash /usr/local/lib/orbitos/orbitos-installer.sh
-Icon=utilities-terminal
-Terminal=false
-Categories=System;
-StartupNotify=true
