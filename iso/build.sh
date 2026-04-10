@@ -79,6 +79,7 @@ LOGO_DST="${SCRIPT_DIR}/airootfs/etc/calamares/branding/orbitos/orbitos-logo.png
 PIXMAP_DST="${SCRIPT_DIR}/airootfs/usr/share/pixmaps/orbitos.png"
 
 if [[ -f "$LOGO_SRC" ]]; then
+    mkdir -p "$(dirname "$LOGO_DST")" "$(dirname "$PIXMAP_DST")"
     cp "$LOGO_SRC" "$LOGO_DST"
     cp "$LOGO_SRC" "$PIXMAP_DST"
     info "OrbitOS logo copied into ISO."
