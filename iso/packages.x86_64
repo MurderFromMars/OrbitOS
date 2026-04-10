@@ -9,6 +9,11 @@ fwupd
 intel-ucode
 amd-ucode
 
+# ── CachyOS repos ───────────────────────────────────────────────────────────
+cachyos-keyring
+cachyos-mirrorlist
+cachyos-v3-mirrorlist
+
 # ── Bootloader ──────────────────────────────────────────────────────────────
 grub
 efibootmgr
