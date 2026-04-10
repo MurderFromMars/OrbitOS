@@ -18,6 +18,7 @@ bootmodes=(
     'uefi-ia32.grub.eltorito'
     'uefi-x64.grub.eltorito'
 )
+script="customize_airootfs.sh"
 arch="x86_64"
 pacman_conf="pacman.conf"
 airootfs_image_type="squashfs"
@@ -32,4 +33,7 @@ file_permissions=(
     ["/usr/local/lib/orbitos/orbitos-desktop.sh"]="0:0:755"
     ["/usr/local/lib/orbitos/orbitos-extras.sh"]="0:0:755"
     ["/usr/local/lib/orbitos/orbitos-drivers.sh"]="0:0:755"
+    ["/usr/local/lib/orbitos/orbitos-installer.sh"]="0:0:755"
+    ["/usr/local/lib/orbitos/orbitos-live-setup.sh"]="0:0:755"
+    ["/root/customize_airootfs.sh"]="0:0:755"
 )
