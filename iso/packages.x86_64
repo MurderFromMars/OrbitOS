@@ -40,7 +40,7 @@ nss-mdns
 dhcpcd
 dnsmasq
 nmap
-gnu-netcat
+openbsd-netcat
 
 # ── Bluetooth ───────────────────────────────────────────────────────────────
 bluez
@@ -128,8 +128,7 @@ noto-fonts
 noto-fonts-emoji
 
 # ── Calamares installer ────────────────────────────────────────────────────
-calamares
-calamares-qt6
+cachyos-calamares
 
 # ── archiso / live environment ──────────────────────────────────────────────
 archinstall
