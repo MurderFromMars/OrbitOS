@@ -13,6 +13,11 @@ OVERRIDES="/usr/local/lib/orbitos/calamares-overrides"
 
 echo ":: Applying OrbitOS Calamares configuration overrides..."
 
+# Override pacman.conf with OrbitOS version (includes CachyOS repos)
+if [[ -f "$OVERRIDES/pacman.conf" ]]; then
+    cp -f "$OVERRIDES/pacman.conf" /etc/pacman.conf
+fi
+
 # Override settings.conf
 if [[ -f "$OVERRIDES/settings.conf" ]]; then
     cp -f "$OVERRIDES/settings.conf" /etc/calamares/settings.conf
