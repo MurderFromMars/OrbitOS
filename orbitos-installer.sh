@@ -1717,6 +1717,50 @@ Name=OrbitOS
 Website=https://github.com/MurderFromMars
 EOF
 
+    # ── Pacman hook: restore branding after filesystem/lsb-release upgrades ──
+    mkdir -p "$ORBIT_MOUNT/etc/pacman.d/hooks"
+    mkdir -p "$ORBIT_MOUNT/usr/local/bin"
+
+    cat > "$ORBIT_MOUNT/usr/local/bin/orbitos-branding" << 'BRANDEOF'
+#!/bin/bash
+# Restore OrbitOS branding after package updates overwrite os-release / lsb-release
+
+cat > /etc/os-release << 'OSEOF'
+NAME="OrbitOS"
+PRETTY_NAME="OrbitOS"
+ID=arch
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;23;147;209"
+HOME_URL="https://github.com/MurderFromMars"
+LOGO=orbitos
+OSEOF
+
+cp /etc/os-release /usr/lib/os-release 2>/dev/null || true
+
+cat > /etc/lsb-release << 'LSBEOF'
+DISTRIB_ID="OrbitOS"
+DISTRIB_RELEASE="rolling"
+DISTRIB_DESCRIPTION="OrbitOS"
+LSBEOF
+BRANDEOF
+    chmod +x "$ORBIT_MOUNT/usr/local/bin/orbitos-branding"
+
+    cat > "$ORBIT_MOUNT/etc/pacman.d/hooks/orbitos-branding.hook" << 'HOOKEOF'
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = filesystem
+Target = lsb-release
+
+[Action]
+Description = Restoring OrbitOS branding...
+When = PostTransaction
+Exec = /usr/local/bin/orbitos-branding
+HOOKEOF
+
+    ui_ok "Pacman hook installed — branding survives package updates"
     ui_ok "KDE About This System: OrbitOS branding configured"
 }
 
