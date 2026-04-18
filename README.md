@@ -14,16 +14,6 @@ automatic hardware detection, and handheld device support.
 
 ## Quick Start
 
-### Option 1: OrbitOS ISO (Recommended)
-
-Download the OrbitOS ISO, write it to USB, and boot. The live desktop includes
-two installers:
-
-- **Install OrbitOS** — Calamares graphical installer (desktop shortcut)
-- **Install OrbitOS (TUI)** — Original terminal installer (desktop shortcut)
-
-### Option 2: Script Install (no OrbitOS ISO needed)
-
 Boot into a stock [Arch Linux live ISO](https://archlinux.org/download/),
 connect to the internet, then run:
 
@@ -31,8 +21,8 @@ connect to the internet, then run:
 bash <(curl -fsSL https://raw.githubusercontent.com/MurderFromMars/OrbitOS/main/orbitos-installer.sh)
 ```
 
-The TUI installer is self-contained — it fetches its own dependencies and
-does not require the OrbitOS ISO.
+The TUI installer is self-contained — it fetches its own dependencies from
+the live ISO. No custom ISO required.
 
 > WiFi? Connect first with `iwctl station wlan0 connect "YourSSID"`
 
@@ -128,6 +118,22 @@ bash ~/Playstation-4-Plasma/install.sh
 
 ---
 
+## Branding Persistence
+
+A pacman hook (installed automatically) restores `/etc/os-release` and
+`/etc/lsb-release` after any `filesystem` package upgrade, so the OrbitOS
+identity survives `pacman -Syu`.
+
+On an existing install (or if branding was ever wiped), re-apply with:
+
+```bash
+sudo bash orbitos-rebrand.sh
+```
+
+This rewrites the release files and installs the persistence hook.
+
+---
+
 ## CyberXero Toolkit
 
 Built from source with cargo during installation. Provides a GTK4 GUI for:
@@ -161,34 +167,6 @@ xero-toolkit
 # steam launch options
 gamemoderun %command%     # performance mode
 mangohud %command%        # HUD overlay
-```
-
----
-
-## Building the ISO
-
-Requires an Arch Linux host with `archiso` installed.
-
-```bash
-sudo pacman -S archiso git
-git clone https://github.com/MurderFromMars/OrbitOS.git
-cd OrbitOS/iso
-sudo ./build.sh
-```
-
-The build script handles Chaotic-AUR keyring setup automatically if needed.
-The finished ISO is written to `OrbitOS/iso/out/`.
-
-Write it to USB (replace `/dev/sdX` with your drive):
-
-```bash
-sudo dd bs=4M if=out/orbitos-*.iso of=/dev/sdX status=progress oflag=sync
-```
-
-To clean and rebuild:
-
-```bash
-sudo ./build.sh clean
 ```
 
 ---
