@@ -1773,9 +1773,9 @@ install_orbit_extras() {
 
     ui_info "  Installing build/runtime dependencies..."
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
-        rust cargo pkgconf \
+        base-devel rust cargo pkgconf \
         gtk4 glib2 libadwaita vte4 \
-        polkit \
+        flatpak polkit \
         cmake extra-cmake-modules \
         kitty cava imagemagick \
         scx-scheds \
@@ -1800,21 +1800,21 @@ install_orbit_extras() {
 set -e
 SRC="/home/${CFG[username]}/CyberXero-Toolkit"
 
-mkdir -p /opt/xero-toolkit/sources/scripts /opt/xero-toolkit/sources/systemd
+mkdir -p /opt/cyberxero-toolkit/sources/scripts /opt/cyberxero-toolkit/sources/systemd
 
-install -Dm755 "\$SRC/target/release/xero-toolkit" /opt/xero-toolkit/xero-toolkit
-install -Dm755 "\$SRC/target/release/xero-authd"   /opt/xero-toolkit/xero-authd   2>/dev/null || true
-install -Dm755 "\$SRC/target/release/xero-auth"    /opt/xero-toolkit/xero-auth    2>/dev/null || true
+install -Dm755 "\$SRC/target/release/cyberxero-toolkit" /opt/cyberxero-toolkit/cyberxero-toolkit
+install -Dm755 "\$SRC/target/release/cyberxero-authd"   /opt/cyberxero-toolkit/cyberxero-authd   2>/dev/null || true
+install -Dm755 "\$SRC/target/release/cyberxero-auth"    /opt/cyberxero-toolkit/cyberxero-auth    2>/dev/null || true
 
-[[ -d "\$SRC/sources/scripts" ]] && install -m755 "\$SRC/sources/scripts/"* /opt/xero-toolkit/sources/scripts/ 2>/dev/null || true
-[[ -d "\$SRC/sources/systemd" ]] && install -m644 "\$SRC/sources/systemd/"* /opt/xero-toolkit/sources/systemd/ 2>/dev/null || true
+[[ -d "\$SRC/sources/scripts" ]] && install -m755 "\$SRC/sources/scripts/"* /opt/cyberxero-toolkit/sources/scripts/ 2>/dev/null || true
+[[ -d "\$SRC/sources/systemd" ]] && install -m644 "\$SRC/sources/systemd/"* /opt/cyberxero-toolkit/sources/systemd/ 2>/dev/null || true
 
-ln -sf /opt/xero-toolkit/xero-toolkit /usr/bin/xero-toolkit
+ln -sf /opt/cyberxero-toolkit/cyberxero-toolkit /usr/bin/cyberxero-toolkit
 
-install -Dm644 "\$SRC/packaging/xero-toolkit.desktop" \
-    /usr/share/applications/xero-toolkit.desktop
-install -Dm644 "\$SRC/gui/resources/icons/scalable/apps/xero-toolkit.png" \
-    /usr/share/icons/hicolor/scalable/apps/xero-toolkit.png
+install -Dm644 "\$SRC/packaging/cyberxero-toolkit.desktop" \
+    /usr/share/applications/cyberxero-toolkit.desktop
+install -Dm644 "\$SRC/gui/resources/icons/scalable/apps/cyberxero-toolkit.png" \
+    /usr/share/icons/hicolor/scalable/apps/cyberxero-toolkit.png
 gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
 
 if [[ -d "\$SRC/extra-scripts/usr/local/bin" ]]; then
@@ -1826,7 +1826,7 @@ fi
 rm -rf "\$SRC/target"
 TOOLINSTALL
 
-        ui_ok "CyberXero Toolkit installed → /opt/xero-toolkit  (run: xero-toolkit)"
+        ui_ok "CyberXero Toolkit installed → /opt/cyberxero-toolkit  (run: cyberxero-toolkit)"
     fi
 
     # ── PS4 theme — first-boot autostart ─────────────────────────────────────
@@ -2067,7 +2067,7 @@ perform_installation() {
         "" \
         "On first login (log into Plasma desktop):" \
         "  >> Gaming (Steam, Lutris, Heroic) ready to go" \
-        "  >> CyberXero Toolkit: run xero-toolkit" \
+        "  >> CyberXero Toolkit: run cyberxero-toolkit" \
         "  >> PS4 Plasma Theme applies automatically" \
         "$handheld_note"
     echo ""
