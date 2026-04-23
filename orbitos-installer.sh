@@ -1778,7 +1778,7 @@ install_orbit_extras() {
         flatpak polkit \
         cmake extra-cmake-modules \
         kitty cava imagemagick \
-        scx-scheds \
+        scx-scheds scx-tools \
         || ui_warn "Some build dependencies failed — toolkit build may fail"
 
     ui_info "  Cloning and building CyberXero Toolkit (Rust — may take a few minutes)..."
@@ -1800,14 +1800,13 @@ install_orbit_extras() {
 set -e
 SRC="/home/${CFG[username]}/CyberXero-Toolkit"
 
-mkdir -p /opt/cyberxero-toolkit/sources/scripts /opt/cyberxero-toolkit/sources/systemd
+mkdir -p /opt/cyberxero-toolkit/sources/scripts
 
 install -Dm755 "\$SRC/target/release/cyberxero-toolkit" /opt/cyberxero-toolkit/cyberxero-toolkit
 install -Dm755 "\$SRC/target/release/cyberxero-authd"   /opt/cyberxero-toolkit/cyberxero-authd   2>/dev/null || true
 install -Dm755 "\$SRC/target/release/cyberxero-auth"    /opt/cyberxero-toolkit/cyberxero-auth    2>/dev/null || true
 
 [[ -d "\$SRC/sources/scripts" ]] && install -m755 "\$SRC/sources/scripts/"* /opt/cyberxero-toolkit/sources/scripts/ 2>/dev/null || true
-[[ -d "\$SRC/sources/systemd" ]] && install -m644 "\$SRC/sources/systemd/"* /opt/cyberxero-toolkit/sources/systemd/ 2>/dev/null || true
 
 ln -sf /opt/cyberxero-toolkit/cyberxero-toolkit /usr/bin/cyberxero-toolkit
 
@@ -1824,6 +1823,9 @@ if [[ -d "\$SRC/extra-scripts/usr/local/bin" ]]; then
 fi
 
 rm -rf "\$SRC/target"
+
+# Enable scx_loader so CyberXero Toolkit's scheduler tab has a live backend on first boot.
+systemctl enable scx_loader.service 2>/dev/null || true
 TOOLINSTALL
 
         ui_ok "CyberXero Toolkit installed → /opt/cyberxero-toolkit  (run: cyberxero-toolkit)"
