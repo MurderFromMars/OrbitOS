@@ -1169,7 +1169,7 @@ install_base_system() {
     grep -q "AuthenticAMD" /proc/cpuinfo && pkgs+=" amd-ucode"
 
     pkgs+=" grub efibootmgr os-prober"
-    pkgs+=" btrfs-progs dosfstools e2fsprogs xfsprogs gptfdisk"
+    pkgs+=" btrfs-progs dosfstools e2fsprogs xfsprogs gptfdisk timeshift"
     pkgs+=" sudo nano vim git wget curl"
     pkgs+=" networkmanager iw iwd ppp openssh wpa_supplicant wireless_tools"
     pkgs+=" avahi nss-mdns dhcpcd"
