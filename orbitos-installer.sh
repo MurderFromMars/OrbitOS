@@ -1559,6 +1559,10 @@ install_kde_minimal() {
         kwalletmanager \
         kdialog
 
+    # ── Default browser (from CachyOS repos) ─────────────────────────────
+    arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
+        zen-browser
+
     # ── Thumbnail / file previews ────────────────────────────────────────
     arch-chroot "$ORBIT_MOUNT" pacman -S --noconfirm --needed \
         tumbler ffmpegthumbnailer poppler-qt6 \
