@@ -775,6 +775,7 @@ panel_desktop() {
         "vesktop            Discord (enhanced client)"
         "telegram-desktop   Telegram"
         "vscodium           VSCodium editor"
+        "jdk-openjdk        Java Development Kit"
         "keepassxc          Password manager"
         "bitwarden          Password manager"
         "gimp               Image editor"
