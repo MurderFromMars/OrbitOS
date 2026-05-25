@@ -1575,7 +1575,7 @@ install_kde_minimal() {
         gvfs gvfs-mtp gvfs-smb gvfs-afc udisks2 udiskie \
         xdg-utils xdg-user-dirs \
         flatpak \
-        tuned-ppd \
+        power-profiles-daemon \
         switcheroo-control \
         brightnessctl \
         ntfs-3g exfatprogs \
